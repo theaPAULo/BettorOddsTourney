@@ -1,94 +1,49 @@
-//
-//  BetMatchingService.swift
-//  BettorOdds
-//
-//  Created by Assistant on 2/2/25
-//  Version: 1.0.1
-//
+// Updated version of Models/BetMatchingService.swift
+// Version: 3.0.0 - Converted to TournamentBetService
+// Updated: April 2025
 
 import Foundation
 import FirebaseFirestore
 
-actor BetMatchingService {
+actor TournamentBetService {
     // MARK: - Properties
-    static let shared = BetMatchingService()
-    private let db = FirebaseConfig.shared.db  // Use FirebaseConfig instead of direct Firestore
-    
-    #if DEBUG
-    var isTestMode = false  // Enable for automatic test matching
-    #endif
+    static let shared = TournamentBetService()
+    private let db = FirebaseConfig.shared.db
     
     // MARK: - Public Methods
     
-    /// Attempts to match a new bet with existing opposing bets
-    /// - Parameter bet: The new bet to match
-    /// - Returns: Updated bet with any matches
-    func matchBet(_ bet: Bet) async throws -> Bet {
-        print("🎲 Attempting to match bet: \(bet.id)")
+    /// Places a bet in the tournament system
+    /// - Parameter bet: The new bet to place
+    /// - Returns: Updated bet with status
+    func placeBet(_ bet: Bet) async throws -> Bet {
+        print("🎲 Processing tournament bet: \(bet.id)")
         
-        // 1. Find potential matches
-        let opposingBets = try await findPotentialMatches(for: bet)
+        // 1. Validate tournament exists and is active
+        guard let tournament = try await fetchTournament(id: bet.tournamentId) else {
+            throw BetError.invalidTournament
+        }
         
-        // 2. Sort by FIFO (oldest first)
-        let sortedBets = opposingBets.sorted { $0.createdAt < $1.createdAt }
+        if tournament.status != .active {
+            throw BetError.tournamentInactive
+        }
         
-        // 3. Try to match with each opposing bet
+        // 2. Save bet to Firestore
+        try await db.collection("bets").document(bet.id).setData(bet.toDictionary())
+        
+        // 3. Update user's leaderboard entry
+        try await updateLeaderboard(
+            userId: bet.userId,
+            tournamentId: bet.tournamentId,
+            betAmount: bet.amount
+        )
+        
         var updatedBet = bet
-        var remainingAmount = bet.amount
-        
-        for opposingBet in sortedBets {
-            guard remainingAmount > 0 else { break }
-            
-            // Calculate match amount
-            let matchAmount = min(remainingAmount, opposingBet.remainingAmount)
-            
-            // Create match
-            let match = try await createMatch(
-                betId: bet.id,
-                opposingBetId: opposingBet.id,
-                amount: Double(matchAmount)
-            )
-            
-            // Update both bets
-            try await updateBetsForMatch(
-                bet: &updatedBet,
-                opposingBet: opposingBet,
-                match: match
-            )
-            
-            remainingAmount -= matchAmount
-        }
-        
-        // 4. Update bet status based on matching
-        if remainingAmount == 0 {
-            updatedBet.status = .fullyMatched
-            try await updateBetStatus(betId: bet.id, newStatus: .fullyMatched)
-        } else if remainingAmount < bet.amount {
-            updatedBet.status = .partiallyMatched
-            try await updateBetStatus(betId: bet.id, newStatus: .partiallyMatched)
-        }
+        updatedBet.status = .pending
         
         return updatedBet
     }
     
-    /// Cancels all pending bets for a game
-    /// - Parameter gameId: The game's ID
-    func cancelPendingBets(for gameId: String) async throws {
-        print("🔄 Cancelling pending bets for game: \(gameId)")
-        
-        let pendingBets = try await db.collection("bets")
-            .whereField("gameId", isEqualTo: gameId)
-            .whereField("status", in: [BetStatus.pending.rawValue,
-                                     BetStatus.partiallyMatched.rawValue])
-            .getDocuments()
-        
-        for document in pendingBets.documents {
-            guard let bet = Bet(document: document) else { continue }
-            try await cancelBet(bet)
-        }
-    }
-    
-    /// Cancels a specific bet
+    /// Cancels a bet if allowed
     /// - Parameter bet: The bet to cancel
     func cancelBet(_ bet: Bet) async throws {
         guard bet.canBeCancelled else {
@@ -96,139 +51,94 @@ actor BetMatchingService {
         }
         
         // Update status to cancelled
-        try await updateBetStatus(betId: bet.id, newStatus: .cancelled)
+        try await db.collection("bets").document(bet.id).updateData([
+            "status": BetStatus.cancelled.rawValue,
+            "updatedAt": Timestamp(date: Date())
+        ])
         
-        // Refund remaining amount
-        if bet.remainingAmount > 0 {
-            try await refundUser(
-                userId: bet.userId,
-                amount: bet.remainingAmount,
-                coinType: bet.coinType
-            )
-        }
+        // Refund tournament coins
+        try await refundCoins(
+            userId: bet.userId,
+            tournamentId: bet.tournamentId,
+            amount: bet.amount
+        )
     }
     
     // MARK: - Private Methods
     
-    // Make findPotentialMatches public and use FirebaseConfig
-    func findPotentialMatches(for bet: Bet) async throws -> [Bet] {
-        // Query for opposing bets on the same game
-        let querySnapshot = try await FirebaseConfig.shared.db.collection("bets")
-            .whereField("gameId", isEqualTo: bet.gameId)
-            .whereField("status", in: [BetStatus.pending.rawValue,
-                                     BetStatus.partiallyMatched.rawValue])
-            .whereField("isHomeTeam", isEqualTo: !bet.isHomeTeam) // Opposite side
-            .whereField("coinType", isEqualTo: bet.coinType.rawValue)
+    /// Fetches a tournament by ID
+    private func fetchTournament(id: String) async throws -> Tournament? {
+        let document = try await db.collection("tournaments").document(id).getDocument()
+        return Tournament(document: document)
+    }
+    
+    /// Updates user's leaderboard entry
+    private func updateLeaderboard(userId: String, tournamentId: String, betAmount: Int) async throws {
+        // Get leaderboard entry
+        let querySnapshot = try await db.collection("leaderboard")
+            .whereField("userId", isEqualTo: userId)
+            .whereField("tournamentId", isEqualTo: tournamentId)
+            .limit(to: 1)
             .getDocuments()
         
-        return querySnapshot.documents.compactMap { Bet(document: $0) }
-    }
-    
-    private func createMatch(betId: String, opposingBetId: String, amount: Double) async throws -> BetMatch {
-        let match = BetMatch(
-            id: UUID().uuidString,
-            betId: betId,
-            matchedBetId: opposingBetId,
-            amount: amount,
-            createdAt: Date()
-        )
+        guard let document = querySnapshot.documents.first else {
+            throw BetError.leaderboardEntryNotFound
+        }
         
-        // Save match to Firestore
-        try await db.collection("betMatches").document(match.id).setData(match.toDictionary())
-        
-        return match
-    }
-    
-    private func updateBetsForMatch(bet: inout Bet, opposingBet: Bet, match: BetMatch) async throws {
-        let batch = db.batch()
-        
-        // Update first bet
-        let bet1Ref = db.collection("bets").document(bet.id)
-        var bet1Data = bet.toDictionary()
-        bet1Data["remainingAmount"] = bet.remainingAmount - Int(match.amount)
-        bet1Data["matches"] = FieldValue.arrayUnion([match.toDictionary()])
-        batch.updateData(bet1Data, forDocument: bet1Ref)
-        
-        // Update opposing bet
-        let bet2Ref = db.collection("bets").document(opposingBet.id)
-        var bet2Data = opposingBet.toDictionary()
-        bet2Data["remainingAmount"] = opposingBet.remainingAmount - Int(match.amount)
-        bet2Data["matches"] = FieldValue.arrayUnion([match.toDictionary()])
-        batch.updateData(bet2Data, forDocument: bet2Ref)
-        
-        try await batch.commit()
-    }
-    
-    private func updateBetStatus(betId: String, newStatus: BetStatus) async throws {
-        try await db.collection("bets").document(betId).updateData([
-            "status": newStatus.rawValue,
-            "updatedAt": Timestamp(date: Date())
+        // Fixed: Using document.documentID instead of document.id
+        try await db.collection("leaderboard").document(document.documentID).updateData([
+            "coinsRemaining": FieldValue.increment(Int64(-betAmount)),
+            "coinsBet": FieldValue.increment(Int64(betAmount)),
+            "betsPlaced": FieldValue.increment(Int64(1))
         ])
     }
     
-    private func refundUser(userId: String, amount: Int, coinType: CoinType) async throws {
-        // Implement refund logic using UserRepository
-        let userRepo = UserRepository()
-        try await userRepo.updateBalance(
-            userId: userId,
-            coinType: coinType,
-            amount: amount
-        )
-    }
-    
-    // MARK: - Test Mode Methods
-    
-    #if DEBUG
-    /// Simulates an opposing bet for testing
-    func simulateOpposingBet(for bet: Bet) async throws {
-        guard isTestMode else { return }
+    /// Refunds coins to user's tournament balance
+    private func refundCoins(userId: String, tournamentId: String, amount: Int) async throws {
+        // Get leaderboard entry
+        let querySnapshot = try await db.collection("leaderboard")
+            .whereField("userId", isEqualTo: userId)
+            .whereField("tournamentId", isEqualTo: tournamentId)
+            .limit(to: 1)
+            .getDocuments()
         
-        // Create opposing bet
-        let opposingBet = Bet(
-            userId: "test_user",
-            gameId: bet.gameId,
-            coinType: bet.coinType,
-            amount: bet.amount,
-            initialSpread: -bet.initialSpread,  // Opposite spread
-            team: bet.isHomeTeam ? bet.team : "Opposing Team",
-            isHomeTeam: !bet.isHomeTeam  // Opposite side
-        )
+        guard let document = querySnapshot.documents.first else {
+            throw BetError.leaderboardEntryNotFound
+        }
         
-        // Save opposing test bet
-        try await db.collection("bets").document(opposingBet.id).setData(opposingBet.toDictionary())
-        
-        // Attempt to match bets
-        _ = try await matchBet(opposingBet)
+        // Fixed: Using document.documentID instead of document.id
+        try await db.collection("leaderboard").document(document.documentID).updateData([
+            "coinsRemaining": FieldValue.increment(Int64(amount)),
+            "coinsBet": FieldValue.increment(Int64(-amount))
+        ])
     }
-    
-    /// Enables or disables test mode
-    func setTestMode(_ enabled: Bool) {
-        isTestMode = enabled
-        print("🧪 Test mode \(enabled ? "enabled" : "disabled")")
-    }
-    #endif
     
     // MARK: - Error Handling
-    
     enum BetError: Error {
-        case insufficientBalance
+        case invalidTournament
+        case tournamentInactive
+        case insufficientCoins
         case gameIsLocked
         case invalidSpread
         case cannotCancel
-        case matchingFailed
+        case leaderboardEntryNotFound
         
         var description: String {
             switch self {
-            case .insufficientBalance:
-                return "Insufficient balance to place bet"
+            case .invalidTournament:
+                return "Tournament not found or invalid"
+            case .tournamentInactive:
+                return "Tournament is not active"
+            case .insufficientCoins:
+                return "Insufficient coins to place bet"
             case .gameIsLocked:
                 return "Game is locked for betting"
             case .invalidSpread:
                 return "Spread has changed significantly"
             case .cannotCancel:
                 return "Bet cannot be cancelled"
-            case .matchingFailed:
-                return "Failed to match bet"
+            case .leaderboardEntryNotFound:
+                return "Leaderboard entry not found"
             }
         }
     }

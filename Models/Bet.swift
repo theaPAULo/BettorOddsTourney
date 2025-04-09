@@ -1,42 +1,19 @@
-//
-//  Bet.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 1/27/25.
-//  Version: 2.0.0 - Added P2P support
-//
+// Updated version of Models/Bet.swift
+// Version: 3.0.0 - Modified for tournament system
+// Updated: April 2025
 
 import SwiftUI
 import FirebaseFirestore
 
-// MARK: - Bet Match Model
-struct BetMatch: Identifiable, Codable {
-    let id: String
-    let betId: String           // Original bet ID
-    let matchedBetId: String    // Opposing bet ID
-    let amount: Double          // Amount matched between these two bets
-    let createdAt: Date
-    
-    // Convert to Firestore data
-    func toDictionary() -> [String: Any] {
-        return [
-            "betId": betId,
-            "matchedBetId": matchedBetId,
-            "amount": amount,
-            "createdAt": Timestamp(date: createdAt)
-        ]
-    }
-}
-
 // MARK: - Bet Status Enum
 enum BetStatus: String, Codable, CaseIterable {
-    case pending = "Pending"         // Initial state when bet is placed, waiting for match
-    case partiallyMatched = "Partially Matched" // Some portion matched, some still pending
-    case fullyMatched = "Matched"    // Completely matched with opposing bet(s)
-    case active = "Active"           // Match complete, game in progress
-    case cancelled = "Cancelled"     // Bet was cancelled (by user, spread change, or game lock)
-    case won = "Won"                 // Bet was successful
-    case lost = "Lost"               // Bet was unsuccessful
+    case pending = "Pending"
+    case partiallyMatched = "Partially Matched" // Keep for backward compatibility
+    case fullyMatched = "Matched"      // Keep for backward compatibility
+    case active = "Active"             // Game in progress
+    case cancelled = "Cancelled"
+    case won = "Won"
+    case lost = "Lost"
     
     var color: Color {
         switch self {
@@ -61,23 +38,24 @@ struct Bet: Identifiable, Codable {
     let id: String
     let userId: String
     let gameId: String
-    let coinType: CoinType
-    let amount: Int               // Total bet amount
+    let tournamentId: String      // New field to track tournament
+    let amount: Int
     let initialSpread: Double
     let currentSpread: Double
     var status: BetStatus
     let createdAt: Date
     var updatedAt: Date
-    let team: String             // Team bet on
+    let team: String
     let isHomeTeam: Bool
-    var matches: [BetMatch]      // Array of matches for this bet
-    var remainingAmount: Int     // Amount still needing to be matched
+    
+    // Add tournament ranking impact
+    var rankingImpact: Int?       // How this bet affected user's ranking
     
     // MARK: - Computed Properties
     
-    /// Amount of this bet that has been matched
-    var matchedAmount: Int {
-        matches.reduce(0) { $0 + Int($1.amount) }
+    /// Emoji for the tournament coins
+    var coinEmoji: String {
+        return "🏆"
     }
     
     /// Calculates potential winnings based on bet amount
@@ -86,7 +64,7 @@ struct Bet: Identifiable, Codable {
         return amount
     }
     
-    /// Checks if spread has changed enough to trigger cancellation
+    /// Checks if spread has changed enough to trigger warning
     var spreadHasChangedSignificantly: Bool {
         return abs(currentSpread - initialSpread) >= 1.0
     }
@@ -100,7 +78,7 @@ struct Bet: Identifiable, Codable {
     init(id: String = UUID().uuidString,
          userId: String,
          gameId: String,
-         coinType: CoinType,
+         tournamentId: String,
          amount: Int,
          initialSpread: Double,
          team: String,
@@ -108,7 +86,7 @@ struct Bet: Identifiable, Codable {
         self.id = id
         self.userId = userId
         self.gameId = gameId
-        self.coinType = coinType
+        self.tournamentId = tournamentId
         self.amount = amount
         self.initialSpread = initialSpread
         self.currentSpread = initialSpread
@@ -117,71 +95,41 @@ struct Bet: Identifiable, Codable {
         self.updatedAt = Date()
         self.team = team
         self.isHomeTeam = isHomeTeam
-        self.matches = []
-        self.remainingAmount = amount  // Initially, all amount needs matching
+        self.rankingImpact = nil
     }
     
     // MARK: - Firestore Conversion
-    
-    /// Initialize from Firestore document
     init?(document: DocumentSnapshot) {
         guard let data = document.data() else { return nil }
         
         self.id = document.documentID
         self.userId = data["userId"] as? String ?? ""
         self.gameId = data["gameId"] as? String ?? ""
+        self.tournamentId = data["tournamentId"] as? String ?? ""
         self.amount = data["amount"] as? Int ?? 0
-        self.remainingAmount = data["remainingAmount"] as? Int ?? 0
         self.initialSpread = data["initialSpread"] as? Double ?? 0.0
         self.currentSpread = data["currentSpread"] as? Double ?? 0.0
         self.team = data["team"] as? String ?? ""
         self.isHomeTeam = data["isHomeTeam"] as? Bool ?? false
-        
-        // Handle complex types
-        if let coinTypeString = data["coinType"] as? String,
-           let coinType = CoinType(rawValue: coinTypeString) {
-            self.coinType = coinType
-        } else {
-            return nil
-        }
+        self.rankingImpact = data["rankingImpact"] as? Int
         
         if let statusString = data["status"] as? String,
            let status = BetStatus(rawValue: statusString) {
             self.status = status
         } else {
-            return nil
+            self.status = .pending
         }
         
         self.createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         self.updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
-        
-        // Load matches if they exist
-        if let matchesData = data["matches"] as? [[String: Any]] {
-            self.matches = matchesData.compactMap { matchData in
-                guard let id = matchData["id"] as? String,
-                      let betId = matchData["betId"] as? String,
-                      let matchedBetId = matchData["matchedBetId"] as? String,
-                      let amount = matchData["amount"] as? Double,
-                      let createdAt = (matchData["createdAt"] as? Timestamp)?.dateValue()
-                else {
-                    return nil
-                }
-                return BetMatch(id: id, betId: betId, matchedBetId: matchedBetId,
-                              amount: amount, createdAt: createdAt)
-            }
-        } else {
-            self.matches = []
-        }
     }
     
-    /// Convert to dictionary for Firestore
     func toDictionary() -> [String: Any] {
         var dict: [String: Any] = [
             "userId": userId,
             "gameId": gameId,
-            "coinType": coinType.rawValue,
+            "tournamentId": tournamentId,
             "amount": amount,
-            "remainingAmount": remainingAmount,
             "initialSpread": initialSpread,
             "currentSpread": currentSpread,
             "status": status.rawValue,
@@ -191,30 +139,10 @@ struct Bet: Identifiable, Codable {
             "isHomeTeam": isHomeTeam
         ]
         
-        // Add matches if they exist
-        if !matches.isEmpty {
-            dict["matches"] = matches.map { $0.toDictionary() }
+        if let rankingImpact = rankingImpact {
+            dict["rankingImpact"] = rankingImpact
         }
         
         return dict
-    }
-    
-    // MARK: - Validation
-    
-    /// Validates bet amount against rules
-    static func validateBetAmount(_ amount: Int, coinType: CoinType, userDailyGreenCoinsUsed: Int = 0) -> Bool {
-        // Check minimum bet
-        guard amount >= 1 else { return false }
-        
-        // Check maximum bet
-        guard amount <= 100 else { return false }
-        
-        // For green coins, check daily limit
-        if coinType == .green {
-            let totalAfterBet = userDailyGreenCoinsUsed + amount
-            guard totalAfterBet <= 100 else { return false }
-        }
-        
-        return true
     }
 }

@@ -1,9 +1,7 @@
-//
-//  LockWarningModifier.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 2/1/25.
-//
+// Updated version of Views/Games/LockWarningModifier.swift
+// Version: 1.1.0 - Fixed deprecation warning
+// Updated: April 2025
+
 import SwiftUI
 
 // Custom view modifier for lock warning animations
@@ -32,7 +30,8 @@ struct LockWarningModifier: ViewModifier {
                     }
                 }
             )
-            .onChange(of: game.needsVisualIndicator) { needsIndicator in
+            // Updated onChange syntax for iOS 17+
+            .onChange(of: game.needsVisualIndicator) { _, needsIndicator in
                 if needsIndicator {
                     startPulsing()
                 }

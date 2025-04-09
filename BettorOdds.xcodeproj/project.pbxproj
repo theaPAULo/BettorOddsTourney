@@ -43,13 +43,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		E44A7D8F2D49DBD4006DC12C /* Exceptions for "Utilities" folder in "BettorOdds" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Color+AppTheme.swift",
-			);
-			target = E494E2AE2D4704330020327A /* BettorOdds */;
-		};
 		E494B3A52D57CE930042A4C5 /* Exceptions for "BettorOdds" folder in "BettorOdds" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -58,16 +51,6 @@
 			target = E494E2AE2D4704330020327A /* BettorOdds */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		E44A7D902D49DBD4006DC12C /* Exceptions for "Utilities" folder in "Copy Bundle Resources" phase from "BettorOdds" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = E494E2AD2D4704330020327A /* Resources */;
-			membershipExceptions = (
-				"Color+AppTheme.swift",
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E43BC6602D49392900F7AE5C /* Documentation */ = {
@@ -88,11 +71,6 @@
 		E43BC6822D493B3900F7AE5C /* Extensions */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Extensions;
-			sourceTree = "<group>";
-		};
-		E46093192D51084A00917F60 /* BettorOddsTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = BettorOddsTests;
 			sourceTree = "<group>";
 		};
 		E494E2B12D4704330020327A /* BettorOdds */ = {
@@ -120,10 +98,6 @@
 		};
 		E494E2D52D4707290020327A /* Utilities */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				E44A7D8F2D49DBD4006DC12C /* Exceptions for "Utilities" folder in "BettorOdds" target */,
-				E44A7D902D49DBD4006DC12C /* Exceptions for "Utilities" folder in "Copy Bundle Resources" phase from "BettorOdds" target */,
-			);
 			path = Utilities;
 			sourceTree = "<group>";
 		};
@@ -199,7 +173,6 @@
 				E494E2D32D4707130020327A /* ViewModels */,
 				E494E2D22D4706F60020327A /* Models */,
 				E494E2B12D4704330020327A /* BettorOdds */,
-				E46093192D51084A00917F60 /* BettorOddsTests */,
 				E494E2B02D4704330020327A /* Products */,
 				39D3342290FACD23593D2814 /* Pods */,
 				E433BECB2D47160D002FFF2F /* GoogleService-Info.plist */,
@@ -232,9 +205,6 @@
 			);
 			dependencies = (
 				E460932F2D516DA600917F60 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				E46093192D51084A00917F60 /* BettorOddsTests */,
 			);
 			name = BettorOddsTests;
 			packageProductDependencies = (
