@@ -1,10 +1,6 @@
-//
-//  ProfileView.swift
-//  BettorOdds
-//
-//  Created by Claude on 2/2/25
-//  Version: 2.1.0
-//
+// Updated file: Views/Profile/ProfileView.swift
+// Version: 3.0.0 - Added tournament support
+// Updated: April 2025
 
 import SwiftUI
 
@@ -12,6 +8,7 @@ struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @State private var showingCoinPurchase = false
     @State private var showingSettings = false
+    @State private var showingSubscription = false
     @State private var scrollOffset: CGFloat = 0
     
     // MARK: - ScrollOffset Preference Key
@@ -67,7 +64,7 @@ struct ProfileView: View {
                             Text("Profile")
                                 .font(.system(size: 32, weight: .bold))
                                 .foregroundColor(Color("Primary"))
-                                .padding(.top, -60) // Match MyBets spacing
+                                .padding(.top, -60)
                             
                             Text(authViewModel.user?.email ?? "User")
                                 .font(.system(size: 18))
@@ -80,29 +77,54 @@ struct ProfileView: View {
                             }
                         }
                         
-                        // Coin Balances
-                        HStack(spacing: 16) {
-                            // Yellow Coins
-                            CoinBalanceCard(
-                                type: .yellow,
-                                balance: authViewModel.user?.yellowCoins ?? 0
-                            )
-                            
-                            // Green Coins
-                            CoinBalanceCard(
-                                type: .green,
-                                balance: authViewModel.user?.greenCoins ?? 0
-                            )
+                        // Subscription Status
+                        if let user = authViewModel.user {
+                            SubscriptionStatusView(status: user.subscriptionStatus, expiryDate: user.subscriptionExpiryDate)
+                                .padding(.horizontal)
                         }
-                        .padding(.horizontal)
+                        
+                        // Tournament Coins
+                        if let user = authViewModel.user, user.subscriptionStatus == .active {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("🏆")
+                                        .font(.system(size: 24))
+                                    
+                                    Text("\(user.weeklyCoins)")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.textPrimary)
+                                }
+                                
+                                Text("Tournament Coins")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.textSecondary)
+                                
+                                if let resetDate = user.weeklyCoinsReset {
+                                    Text("Resets \(resetDate.formatted(.dateTime.weekday(.wide)))")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.textSecondary)
+                                }
+                            }
+                            .padding()
+                            .background(Color.backgroundSecondary)
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                        }
+                        
+                        // Tournament Stats Section
+                        if let user = authViewModel.user, user.subscriptionStatus == .active {
+                            TournamentStatsSection(stats: user.tournamentStats)
+                                .padding(.horizontal)
+                        }
                         
                         // Quick Actions
                         VStack(spacing: 0) {
+                            // Add subscription button
                             ActionButton(
-                                title: "Buy Coins",
-                                icon: "dollarsign.circle.fill"
+                                title: authViewModel.user?.subscriptionStatus == .active ? "Manage Subscription" : "Subscribe Now",
+                                icon: "trophy.fill"
                             ) {
-                                showingCoinPurchase = true
+                                showingSubscription = true
                             }
                             
                             ActionButton(
@@ -138,8 +160,8 @@ struct ProfileView: View {
                 .coordinateSpace(name: "scroll")
             }
         }
-        .sheet(isPresented: $showingCoinPurchase) {
-            CoinPurchaseView()
+        .sheet(isPresented: $showingSubscription) {
+            SubscriptionView()
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -171,74 +193,127 @@ struct ProfileView: View {
     }
 }
 
-// Keeping existing supporting views unchanged
-struct CoinBalanceCard: View {
-    let type: CoinType
-    let balance: Int
+// New component: Subscription status
+struct SubscriptionStatusView: View {
+    let status: SubscriptionStatus
+    let expiryDate: Date?
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             HStack {
-                Text(type == .yellow ? "🟡" : "💚")
-                    .font(.system(size: 24))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Subscription Status")
+                        .font(.system(size: 14))
+                        .foregroundColor(.textSecondary)
+                    
+                    HStack {
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 10, height: 10)
+                        
+                        Text(statusText)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+                    }
+                }
+                
                 Spacer()
-                Text(balance.formatted())
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.textPrimary)
+                
+                if status == .active, let date = expiryDate {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Next Payment")
+                            .font(.system(size: 14))
+                            .foregroundColor(.textSecondary)
+                        
+                        Text(date, style: .date)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.textPrimary)
+                    }
+                }
             }
             
-            HStack {
-                Text(type == .yellow ? "Play Coins" : "Real Coins")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textSecondary)
-                Spacer()
+            if status != .active {
+                Button(action: {
+                    // Show subscription view
+                }) {
+                    Text("Subscribe Now")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color("Primary"))
+                        .cornerRadius(8)
+                }
             }
         }
         .padding()
         .background(Color.backgroundSecondary)
         .cornerRadius(12)
-        .shadow(color: Color.backgroundPrimary.opacity(0.1), radius: 5)
+    }
+    
+    var statusText: String {
+        switch status {
+        case .active: return "Active"
+        case .expired: return "Expired"
+        case .cancelled: return "Cancelled"
+        case .none: return "Not Subscribed"
+        }
+    }
+    
+    var statusColor: Color {
+        switch status {
+        case .active: return .green
+        case .expired: return .orange
+        case .cancelled: return .red
+        case .none: return .gray
+        }
     }
 }
 
-struct ActionButton: View {
-    let title: String
-    let icon: String
-    var showDivider: Bool = true
-    var isDestructive: Bool = false
-    let action: () -> Void
+// Tournament stats section
+struct TournamentStatsSection: View {
+    let stats: TournamentStats
     
     var body: some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(isDestructive ? .statusError : .primary)
-                    .frame(width: 30)
-                
-                Text(title)
-                    .foregroundColor(isDestructive ? .statusError : .textPrimary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(.textSecondary)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Tournament Statistics")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.textPrimary)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 16) {
+                StatItem(label: "Tournaments", value: "\(stats.tournamentsEntered)")
+                StatItem(label: "Best Finish", value: stats.bestFinish > 0 ? "#\(stats.bestFinish)" : "-")
+                StatItem(label: "Win Rate", value: String(format: "%.1f%%", winRate))
+                StatItem(label: "Total Winnings", value: "$\(Int(stats.totalWinnings))")
             }
-            .padding()
         }
-        
-        if showDivider {
-            Divider()
-                .padding(.leading, 56)
-                .background(Color.backgroundPrimary)
-        }
+        .padding()
+        .background(Color.backgroundSecondary)
+        .cornerRadius(12)
+    }
+    
+    var winRate: Double {
+        guard stats.lifetimeBets > 0 else { return 0 }
+        return Double(stats.lifetimeWins) / Double(stats.lifetimeBets) * 100
     }
 }
 
-#Preview {
-    NavigationView {
-        ProfileView()
-            .environmentObject(AuthenticationViewModel())
+struct StatItem: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundColor(.textSecondary)
+            
+            Text(value)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.textPrimary)
+        }
     }
 }

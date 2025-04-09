@@ -1,48 +1,27 @@
-//
-//  CoinType.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 1/26/25.
-//
+// Updated version of Models/CoinType.swift
+// Version: 2.0.0 - Changed to tournament-based coin system
+// Updated: April 2025
 
-
-// File: Models/CoinTypes.swift
 import Foundation
 
 enum CoinType: String, Codable {
-    case yellow
-    case green
+    case tournament // Single tournament coin type replacing yellow/green
     
     var displayName: String {
-        switch self {
-        case .yellow:
-            return "Play Coins"
-        case .green:
-            return "Real Coins"
-        }
+        return "Tournament Coins"
     }
     
     var emoji: String {
-        switch self {
-        case .yellow:
-            return "🟡"
-        case .green:
-            return "💚"
-        }
+        return "🏆"
     }
     
     var isRealMoney: Bool {
-        return self == .green
+        return false // Coins represent tournament entry, not direct money
     }
     
-    // Value in USD
+    // Value is no longer relevant in tournament model
     var value: Double {
-        switch self {
-        case .yellow:
-            return 0.0
-        case .green:
-            return 1.0
-        }
+        return 0.0
     }
 }
 
@@ -51,6 +30,6 @@ struct CoinBalance {
     let amount: Int
     
     var formattedAmount: String {
-        return type == .green ? "$\(amount)" : "\(amount)"
+        return "\(amount)"
     }
 }

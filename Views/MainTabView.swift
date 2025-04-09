@@ -1,10 +1,6 @@
-//
-//  MainTabView.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 1/26/25.
-//  Version: 2.1.0
-//
+// Updated MainTabView.swift
+// Version: 3.0.0 - Added tournament support
+// Updated: April 2025
 
 import SwiftUI
 
@@ -33,14 +29,23 @@ struct MainTabView: View {
             }
             .tag(1)
             
-            // Profile Tab
+            // NEW: Leaderboard Tab
+            NavigationView {
+                LeaderboardView()
+            }
+            .tabItem {
+                Label("Leaderboard", systemImage: "trophy.fill")
+            }
+            .tag(2)
+            
+            // Profile Tab (moved to tab 3)
             NavigationView {
                 ProfileView()
             }
             .tabItem {
                 Label("Profile", systemImage: "person.fill")
             }
-            .tag(2)
+            .tag(3)
             
             // Admin Tab (only shown for admin users)
             if authViewModel.user?.adminRole == .admin {
@@ -55,7 +60,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Admin", systemImage: "shield.fill")
                 }
-                .tag(3)
+                .tag(4)
             }
         }
         .accentColor(AppTheme.Brand.primary) // Tab bar tint color
@@ -83,38 +88,4 @@ struct MainTabView: View {
             generator.impactOccurred()
         }
     }
-}
-
-// Admin Authentication View
-struct AdminAuthView: View {
-    @StateObject private var adminNav = AdminNavigation.shared
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "shield.fill")
-                .font(.system(size: 50))
-                .foregroundColor(AppTheme.Brand.primary)
-            
-            Text("Admin Authentication Required")
-                .font(.headline)
-            
-            Text("Please authenticate to access admin features")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
-            
-            Button("Authenticate") {
-                Task {
-                    await adminNav.authenticateAdmin()
-                }
-            }
-            .buttonStyle(.borderedProminent)
-        }
-        .padding()
-    }
-}
-
-#Preview {
-    MainTabView()
-        .environmentObject(AuthenticationViewModel())
 }
