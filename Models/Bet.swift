@@ -1,6 +1,10 @@
-// Updated version of Models/Bet.swift
-// Version: 3.0.0 - Modified for tournament system
-// Updated: April 2025
+//
+//  Bet.swift
+//  BettorOdds
+//
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
+//
 
 import SwiftUI
 import FirebaseFirestore
@@ -8,8 +12,6 @@ import FirebaseFirestore
 // MARK: - Bet Status Enum
 enum BetStatus: String, Codable, CaseIterable {
     case pending = "Pending"
-    case partiallyMatched = "Partially Matched" // Keep for backward compatibility
-    case fullyMatched = "Matched"      // Keep for backward compatibility
     case active = "Active"             // Game in progress
     case cancelled = "Cancelled"
     case won = "Won"
@@ -19,9 +21,7 @@ enum BetStatus: String, Codable, CaseIterable {
         switch self {
         case .pending:
             return .orange
-        case .partiallyMatched:
-            return .yellow
-        case .fullyMatched, .active:
+        case .active:
             return .blue
         case .cancelled:
             return .gray
@@ -31,14 +31,30 @@ enum BetStatus: String, Codable, CaseIterable {
             return .red
         }
     }
+    
+    var icon: String {
+        switch self {
+        case .pending:
+            return "clock.fill"
+        case .active:
+            return "play.fill"
+        case .cancelled:
+            return "xmark.circle.fill"
+        case .won:
+            return "checkmark.circle.fill"
+        case .lost:
+            return "multiply.circle.fill"
+        }
+    }
 }
 
 // MARK: - Bet Model
 struct Bet: Identifiable, Codable {
+    // MARK: - Properties
     let id: String
     let userId: String
     let gameId: String
-    let tournamentId: String      // New field to track tournament
+    let tournamentId: String      // Tournament this bet belongs to
     let amount: Int
     let initialSpread: Double
     let currentSpread: Double
@@ -48,8 +64,9 @@ struct Bet: Identifiable, Codable {
     let team: String
     let isHomeTeam: Bool
     
-    // Add tournament ranking impact
+    // Tournament impact and stats tracking
     var rankingImpact: Int?       // How this bet affected user's ranking
+    var betType: BetType          // Type of bet placed
     
     // MARK: - Computed Properties
     
@@ -58,10 +75,17 @@ struct Bet: Identifiable, Codable {
         return "🏆"
     }
     
-    /// Calculates potential winnings based on bet amount
+    /// Calculates potential winnings based on bet amount and type
     var potentialWinnings: Int {
-        // Even odds: Bet 100 to win 100
-        return amount
+        switch betType {
+        case .spread:
+            return amount // Even money for spread bets
+        case .moneyline:
+            // This would calculate based on odds but simplified for now
+            return Int(Double(amount) * 0.9)
+        case .overUnder:
+            return amount // Even money for over/under
+        }
     }
     
     /// Checks if spread has changed enough to trigger warning
@@ -69,9 +93,9 @@ struct Bet: Identifiable, Codable {
         return abs(currentSpread - initialSpread) >= 1.0
     }
     
-    /// Checks if bet can be cancelled (only pending or partially matched bets)
+    /// Checks if bet can be cancelled (only pending bets)
     var canBeCancelled: Bool {
-        return status == .pending || status == .partiallyMatched
+        return status == .pending
     }
     
     // MARK: - Initialization
@@ -82,7 +106,8 @@ struct Bet: Identifiable, Codable {
          amount: Int,
          initialSpread: Double,
          team: String,
-         isHomeTeam: Bool) {
+         isHomeTeam: Bool,
+         betType: BetType = .spread) {
         self.id = id
         self.userId = userId
         self.gameId = gameId
@@ -96,6 +121,7 @@ struct Bet: Identifiable, Codable {
         self.team = team
         self.isHomeTeam = isHomeTeam
         self.rankingImpact = nil
+        self.betType = betType
     }
     
     // MARK: - Firestore Conversion
@@ -112,6 +138,13 @@ struct Bet: Identifiable, Codable {
         self.team = data["team"] as? String ?? ""
         self.isHomeTeam = data["isHomeTeam"] as? Bool ?? false
         self.rankingImpact = data["rankingImpact"] as? Int
+        
+        if let betTypeString = data["betType"] as? String,
+           let betType = BetType(rawValue: betTypeString) {
+            self.betType = betType
+        } else {
+            self.betType = .spread
+        }
         
         if let statusString = data["status"] as? String,
            let status = BetStatus(rawValue: statusString) {
@@ -136,7 +169,8 @@ struct Bet: Identifiable, Codable {
             "createdAt": Timestamp(date: createdAt),
             "updatedAt": Timestamp(date: updatedAt),
             "team": team,
-            "isHomeTeam": isHomeTeam
+            "isHomeTeam": isHomeTeam,
+            "betType": betType.rawValue
         ]
         
         if let rankingImpact = rankingImpact {
@@ -144,5 +178,23 @@ struct Bet: Identifiable, Codable {
         }
         
         return dict
+    }
+}
+
+// MARK: - Bet Type Enum
+enum BetType: String, Codable {
+    case spread = "Spread"           // Point spread betting
+    case moneyline = "Moneyline"     // Straight-up win/lose
+    case overUnder = "Over/Under"    // Total points over/under
+    
+    var description: String {
+        switch self {
+        case .spread:
+            return "Point Spread"
+        case .moneyline:
+            return "Moneyline"
+        case .overUnder:
+            return "Over/Under"
+        }
     }
 }

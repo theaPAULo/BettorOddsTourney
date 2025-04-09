@@ -3,60 +3,64 @@
 //  BettorOdds
 //
 //  Created by Paul Soni on 1/28/25.
-//
-
+//  Modified on 4/9/25 - Fixed duplicate declarations
+//  Version: 1.1.0
 
 import SwiftUI
 
+// MARK: - Color Extensions
+// Renamed to avoid conflicts with AppTheme in Theme.swift
 extension Color {
-    static var textPrimary: Color {
+    // Colors are now prefixed with "theme" to avoid conflicts
+    static var themeTextPrimary: Color {
         Color(uiColor: UIColor { traitCollection in
             traitCollection.userInterfaceStyle == .dark ? .white : .black
         })
     }
     
-    static var textSecondary: Color {
+    static var themeTextSecondary: Color {
         Color(uiColor: UIColor { traitCollection in
-            traitCollection.userInterfaceStyle == .dark ? 
+            traitCollection.userInterfaceStyle == .dark ?
                 UIColor(hex: "A0A0A0") : UIColor(hex: "666666")
         })
     }
     
-    static var backgroundPrimary: Color {
+    static var themeBackgroundPrimary: Color {
         Color(uiColor: UIColor { traitCollection in
-            traitCollection.userInterfaceStyle == .dark ? 
+            traitCollection.userInterfaceStyle == .dark ?
                 UIColor(hex: "1A1A1A") : .white
         })
     }
     
-    static var backgroundSecondary: Color {
+    static var themeBackgroundSecondary: Color {
         Color(uiColor: UIColor { traitCollection in
-            traitCollection.userInterfaceStyle == .dark ? 
+            traitCollection.userInterfaceStyle == .dark ?
                 UIColor(hex: "2A2A2A") : UIColor(hex: "F5F5F5")
         })
     }
     
-    static var primary: Color {
+    static var themePrimary: Color {
         Color(hex: "00E6CA")
     }
     
-    static var secondary: Color {
+    static var themeSecondary: Color {
         Color(hex: "4B56D2")
     }
     
-    static var statusSuccess: Color {
+    static var themeStatusSuccess: Color {
         Color(hex: "4CAF50")
     }
     
-    static var statusWarning: Color {
+    static var themeStatusWarning: Color {
         Color(hex: "FFC107")
     }
     
-    static var statusError: Color {
+    static var themeStatusError: Color {
         Color(hex: "FF5252")
     }
 }
 
+// Keep the UIColor extension as is
 extension UIColor {
     convenience init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

@@ -2,13 +2,9 @@
 //  Tournament.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 4/8/25.
+//  Created by Paul Soni on 4/9/25.
+//  Version: 1.0.0 - Initial tournament model implementation
 //
-
-
-// New file: Models/Tournament.swift
-// Version: 1.0.0
-// Created: April 2025
 
 import Foundation
 import FirebaseFirestore
@@ -22,11 +18,12 @@ struct Tournament: Identifiable, Codable {
     var participantCount: Int
     var totalPrizePool: Double
     var payoutStructure: [PayoutTier]
+    var name: String // Added for tournament naming
     
     // MARK: - Computed Properties
     var isActive: Bool {
         let now = Date()
-        return now >= startDate && now <= endDate
+        return now >= startDate && now <= endDate && status == .active
     }
     
     var formattedDateRange: String {
@@ -35,8 +32,18 @@ struct Tournament: Identifiable, Codable {
         return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
     }
     
+    var daysRemaining: Int {
+        let calendar = Calendar.current
+        return calendar.dateComponents([.day], from: Date(), to: endDate).day ?? 0
+    }
+    
+    var isEnded: Bool {
+        return Date() > endDate || status == .completed
+    }
+    
     // MARK: - Initialization
     init(id: String = UUID().uuidString,
+         name: String = "Weekly Tournament",
          startDate: Date,
          endDate: Date,
          status: TournamentStatus = .upcoming,
@@ -44,6 +51,7 @@ struct Tournament: Identifiable, Codable {
          totalPrizePool: Double = 0.0,
          payoutStructure: [PayoutTier] = []) {
         self.id = id
+        self.name = name
         self.startDate = startDate
         self.endDate = endDate
         self.status = status
@@ -57,6 +65,7 @@ struct Tournament: Identifiable, Codable {
         guard let data = document.data() else { return nil }
         
         self.id = document.documentID
+        self.name = data["name"] as? String ?? "Weekly Tournament"
         self.participantCount = data["participantCount"] as? Int ?? 0
         self.totalPrizePool = data["totalPrizePool"] as? Double ?? 0.0
         self.startDate = (data["startDate"] as? Timestamp)?.dateValue() ?? Date()
@@ -84,6 +93,7 @@ struct Tournament: Identifiable, Codable {
     
     func toDictionary() -> [String: Any] {
         return [
+            "name": name,
             "startDate": Timestamp(date: startDate),
             "endDate": Timestamp(date: endDate),
             "status": status.rawValue,
@@ -96,6 +106,22 @@ struct Tournament: Identifiable, Codable {
                 ]
             }
         ]
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Calculate potential winnings for a specific rank
+    func winningsForRank(_ rank: Int) -> Double {
+        guard let tier = payoutStructure.first(where: { $0.rank == rank }) else {
+            return 0.0
+        }
+        
+        return totalPrizePool * tier.percentOfPool
+    }
+    
+    /// Determine if a rank is in the money (wins prize)
+    func isPayingRank(_ rank: Int) -> Bool {
+        return payoutStructure.contains(where: { $0.rank == rank })
     }
 }
 
@@ -112,9 +138,18 @@ enum TournamentStatus: String, Codable {
         case .completed: return "Completed"
         }
     }
+    
+    var color: Color {
+        switch self {
+        case .upcoming: return .blue
+        case .active: return .green
+        case .completed: return .gray
+        }
+    }
 }
 
-struct PayoutTier: Codable {
+struct PayoutTier: Codable, Identifiable {
+    var id: String { "\(rank)" } // Computed ID for SwiftUI list identification
     let rank: Int
     let percentOfPool: Double
     
@@ -129,12 +164,13 @@ struct LeaderboardEntry: Identifiable, Codable {
     let userId: String
     let tournamentId: String
     let username: String
-    let rank: Int
-    let coinsRemaining: Int
-    let coinsBet: Int
-    let coinsWon: Int
-    let betsPlaced: Int
-    let betsWon: Int
+    var rank: Int
+    var coinsRemaining: Int
+    var coinsBet: Int
+    var coinsWon: Int
+    var betsPlaced: Int
+    var betsWon: Int
+    var avatarURL: String? // Optional profile picture
     
     // Performance metrics
     var winPercentage: Double {
@@ -144,4 +180,33 @@ struct LeaderboardEntry: Identifiable, Codable {
     var roi: Double {
         return coinsBet > 0 ? (Double(coinsWon) / Double(coinsBet) - 1) * 100 : 0
     }
+    
+    // Total coins (for ranking)
+    var totalCoins: Int {
+        return coinsRemaining + coinsWon
+    }
+    
+    // Format for Firestore
+    func toDictionary() -> [String: Any] {
+        var dict: [String: Any] = [
+            "userId": userId,
+            "tournamentId": tournamentId,
+            "username": username,
+            "rank": rank,
+            "coinsRemaining": coinsRemaining,
+            "coinsBet": coinsBet,
+            "coinsWon": coinsWon,
+            "betsPlaced": betsPlaced,
+            "betsWon": betsWon
+        ]
+        
+        if let avatarURL = avatarURL {
+            dict["avatarURL"] = avatarURL
+        }
+        
+        return dict
+    }
 }
+
+// Add Color import at the top
+import SwiftUI

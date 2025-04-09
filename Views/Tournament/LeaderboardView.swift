@@ -2,24 +2,55 @@
 //  LeaderboardView.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 4/8/25.
+//  Created by Paul Soni on 4/9/25
+//  Version: 1.0.0 - Initial implementation
 //
 
-
-// New file: Views/Tournament/LeaderboardView.swift
-// Version: 1.0.0
-// Created: April 2025
-
 import SwiftUI
+import FirebaseAuth
 
 struct LeaderboardView: View {
+    // MARK: - Properties
     @StateObject private var viewModel = LeaderboardViewModel()
     @EnvironmentObject var authViewModel: AuthenticationViewModel
+    @State private var scrollOffset: CGFloat = 0
+    @State private var showSubscriptionView = false
     
+    // MARK: - ScrollOffset Helper
+    private struct ScrollOffsetPreferenceKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = nextValue()
+        }
+    }
+    
+    private struct ScrollOffsetModifier: ViewModifier {
+        let coordinateSpace: String
+        @Binding var offset: CGFloat
+        
+        func body(content: Content) -> some View {
+            content
+                .overlay(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: proxy.frame(in: .named(coordinateSpace)).minY
+                            )
+                    }
+                )
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                    offset = value
+                }
+        }
+    }
+    
+    // MARK: - View Body
     var body: some View {
         NavigationView {
             ZStack {
-                // Animated Background (reusing from GamesView)
+                // Animated Background
                 LinearGradient(
                     gradient: Gradient(colors: [
                         Color("Primary").opacity(0.2),
@@ -29,6 +60,7 @@ struct LeaderboardView: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
+                .hueRotation(.degrees(scrollOffset / 2))
                 .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -43,30 +75,26 @@ struct LeaderboardView: View {
                                 .font(.system(size: 16))
                                 .foregroundColor(.secondary)
                                 
-                            Text("Prize Pool: $\(Int(tournament.totalPrizePool))")
+                            Text("Prize Pool: \(viewModel.formatCurrency(tournament.totalPrizePool))")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(Color("Primary"))
                         }
                     }
                     .padding()
                     
-                    // User's position highlight
-                    if let userEntry = viewModel.userEntry {
-                        UserRankCard(entry: userEntry)
-                            .padding(.horizontal)
-                    }
-                    
-                    // Leaderboard List
-                    List {
-                        ForEach(viewModel.leaderboardEntries) { entry in
-                            LeaderboardEntryRow(
-                                entry: entry,
-                                isCurrentUser: entry.userId == authViewModel.user?.id
-                            )
+                    // Subscription CTA if needed
+                    if authViewModel.user?.subscriptionStatus != .active {
+                        subscriptionPromptView
+                    } else {
+                        // User's position highlight
+                        if let userEntry = viewModel.userEntry {
+                            UserRankCard(entry: userEntry)
+                                .padding(.horizontal)
+                                .padding(.bottom)
                         }
-                    }
-                    .refreshable {
-                        await viewModel.refreshLeaderboard()
+                        
+                        // Leaderboard List
+                        leaderboardContent
                     }
                 }
             }
@@ -75,10 +103,150 @@ struct LeaderboardView: View {
                     await viewModel.refreshLeaderboard()
                 }
             }
+            .sheet(isPresented: $showSubscriptionView) {
+                SubscriptionView()
+            }
+            .alert(isPresented: $viewModel.showError) {
+                Alert(
+                    title: Text("Error"),
+                    message: Text(viewModel.errorMessage ?? "An unknown error occurred"),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+        }
+    }
+    
+    // MARK: - Subscription Prompt
+    private var subscriptionPromptView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 60))
+                .foregroundColor(Color("Primary").opacity(0.8))
+            
+            Text("Join the Tournament")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text("Subscribe to participate in weekly tournaments and compete for real cash prizes!")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+            
+            Button(action: {
+                showSubscriptionView = true
+            }) {
+                Text("Subscribe Now")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color("Primary"))
+                    .cornerRadius(12)
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 10)
+            
+            Text("$20/month - Cancel anytime")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 40)
+    }
+    
+    // MARK: - Leaderboard Content
+    private var leaderboardContent: some View {
+        Group {
+            if viewModel.isLoading && viewModel.leaderboardEntries.isEmpty {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .padding(.top, 80)
+            } else if viewModel.leaderboardEntries.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 50))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    
+                    Text("No Leaderboard Entries Yet")
+                        .font(.headline)
+                    
+                    Text("Be the first to place a bet and join the tournament!")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .padding(.top, 60)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        // Headers
+                        HStack {
+                            Text("Rank")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(width: 60, alignment: .center)
+                            
+                            Text("User")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                            
+                            Text("Coins")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .frame(width: 80, alignment: .trailing)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                        
+                        // Leaderboard Entries
+                        ForEach(viewModel.leaderboardEntries) { entry in
+                            LeaderboardEntryRow(
+                                entry: entry,
+                                isCurrentUser: entry.userId == Auth.auth().currentUser?.uid
+                            )
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(entry.userId == Auth.auth().currentUser?.uid ?
+                                          Color("Primary").opacity(0.1) : Color.clear)
+                            )
+                        }
+                        
+                        // Load More Button
+                        if viewModel.hasMoreEntries {
+                            Button(action: {
+                                Task {
+                                    await viewModel.loadMoreEntries()
+                                }
+                            }) {
+                                if viewModel.isLoading {
+                                    ProgressView()
+                                        .padding()
+                                } else {
+                                    Text("Load More")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color("Primary"))
+                                        .padding()
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical)
+                }
+                .refreshable {
+                    await viewModel.refreshLeaderboard()
+                }
+                .modifier(ScrollOffsetModifier(coordinateSpace: "scroll", offset: $scrollOffset))
+                .coordinateSpace(name: "scroll")
+            }
         }
     }
 }
 
+// MARK: - User Rank Card
 struct UserRankCard: View {
     let entry: LeaderboardEntry
     
@@ -129,29 +297,39 @@ struct UserRankCard: View {
     }
 }
 
+// MARK: - Leaderboard Entry Row
 struct LeaderboardEntryRow: View {
     let entry: LeaderboardEntry
     let isCurrentUser: Bool
     
     var body: some View {
         HStack {
+            // Rank
             Text("#\(entry.rank)")
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(rankColor)
-                .frame(width: 40)
+                .frame(width: 50, alignment: .center)
             
-            Text(entry.username)
-                .font(.system(size: 16, weight: isCurrentUser ? .bold : .regular))
-                .foregroundColor(isCurrentUser ? Color("Primary") : .primary)
+            // Username with optional crown for top 3
+            HStack(spacing: 4) {
+                if entry.rank <= 3 {
+                    Image(systemName: "crown.fill")
+                        .foregroundColor(.yellow)
+                        .font(.system(size: 14))
+                }
+                
+                Text(entry.username)
+                    .font(.system(size: 16, weight: isCurrentUser ? .bold : .regular))
+                    .foregroundColor(isCurrentUser ? Color("Primary") : .primary)
+            }
             
             Spacer()
             
-            Text("\(entry.coinsRemaining)")
+            // Total Coins
+            Text("\(entry.totalCoins)")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.primary)
         }
-        .padding(.vertical, 8)
-        .listRowBackground(isCurrentUser ? Color.backgroundSecondary.opacity(0.4) : Color.clear)
     }
     
     var rankColor: Color {
@@ -164,126 +342,8 @@ struct LeaderboardEntryRow: View {
     }
 }
 
-// ViewModel for Leaderboard
-class LeaderboardViewModel: ObservableObject {
-    @Published var leaderboardEntries: [LeaderboardEntry] = []
-    @Published var currentTournament: Tournament?
-    @Published var userEntry: LeaderboardEntry?
-    @Published var isLoading = false
-    @Published var errorMessage: String?
-    
-    private let db = FirebaseConfig.shared.db
-    
-    func refreshLeaderboard() async {
-        isLoading = true
-        
-        do {
-            guard let currentUserId = Auth.auth().currentUser?.uid else {
-                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
-            }
-            
-            // 1. Fetch current tournament
-            let tournamentSnapshot = try await db.collection("tournaments")
-                .whereField("status", isEqualTo: TournamentStatus.active.rawValue)
-                .limit(to: 1)
-                .getDocuments()
-            
-            guard let tournamentDoc = tournamentSnapshot.documents.first,
-                  let tournament = Tournament(document: tournamentDoc) else {
-                throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "No active tournament found"])
-            }
-            
-            // 2. Fetch leaderboard entries
-            let leaderboardSnapshot = try await db.collection("leaderboard")
-                .whereField("tournamentId", isEqualTo: tournament.id)
-                .order(by: "rank")
-                .limit(to: 100)
-                .getDocuments()
-            
-            var entries: [LeaderboardEntry] = []
-            for document in leaderboardSnapshot.documents {
-                guard let userId = document.data()["userId"] as? String,
-                      let tournamentId = document.data()["tournamentId"] as? String,
-                      let username = document.data()["username"] as? String,
-                      let rank = document.data()["rank"] as? Int,
-                      let coinsRemaining = document.data()["coinsRemaining"] as? Int,
-                      let coinsBet = document.data()["coinsBet"] as? Int,
-                      let coinsWon = document.data()["coinsWon"] as? Int,
-                      let betsPlaced = document.data()["betsPlaced"] as? Int,
-                      let betsWon = document.data()["betsWon"] as? Int else {
-                    continue
-                }
-                
-                let entry = LeaderboardEntry(
-                    id: document.documentID,
-                    userId: userId,
-                    tournamentId: tournamentId,
-                    username: username,
-                    rank: rank,
-                    coinsRemaining: coinsRemaining,
-                    coinsBet: coinsBet,
-                    coinsWon: coinsWon,
-                    betsPlaced: betsPlaced,
-                    betsWon: betsWon
-                )
-                
-                entries.append(entry)
-                
-                // Track user's entry
-                if userId == currentUserId {
-                    await MainActor.run {
-                        self.userEntry = entry
-                    }
-                }
-            }
-            
-            // If user's entry not found in top 100, fetch it separately
-            if userEntry == nil {
-                let userEntrySnapshot = try await db.collection("leaderboard")
-                    .whereField("tournamentId", isEqualTo: tournament.id)
-                    .whereField("userId", isEqualTo: currentUserId)
-                    .limit(to: 1)
-                    .getDocuments()
-                
-                if let userDoc = userEntrySnapshot.documents.first,
-                   let userId = userDoc.data()["userId"] as? String,
-                   let tournamentId = userDoc.data()["tournamentId"] as? String,
-                   let username = userDoc.data()["username"] as? String,
-                   let rank = userDoc.data()["rank"] as? Int,
-                   let coinsRemaining = userDoc.data()["coinsRemaining"] as? Int,
-                   let coinsBet = userDoc.data()["coinsBet"] as? Int,
-                   let coinsWon = userDoc.data()["coinsWon"] as? Int,
-                   let betsPlaced = userDoc.data()["betsPlaced"] as? Int,
-                   let betsWon = userDoc.data()["betsWon"] as? Int {
-                    
-                    await MainActor.run {
-                        self.userEntry = LeaderboardEntry(
-                            id: userDoc.documentID,
-                            userId: userId,
-                            tournamentId: tournamentId,
-                            username: username,
-                            rank: rank,
-                            coinsRemaining: coinsRemaining,
-                            coinsBet: coinsBet,
-                            coinsWon: coinsWon,
-                            betsPlaced: betsPlaced,
-                            betsWon: betsWon
-                        )
-                    }
-                }
-            }
-            
-            await MainActor.run {
-                self.currentTournament = tournament
-                self.leaderboardEntries = entries
-                self.isLoading = false
-            }
-            
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
-        }
-    }
+// MARK: - Preview
+#Preview {
+    LeaderboardView()
+        .environmentObject(AuthenticationViewModel())
 }

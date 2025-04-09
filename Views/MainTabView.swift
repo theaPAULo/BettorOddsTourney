@@ -1,6 +1,10 @@
-// Updated MainTabView.swift
-// Version: 3.0.0 - Added tournament support
-// Updated: April 2025
+//
+//  MainTabView.swift
+//  BettorOdds
+//
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Added tournament support
+//
 
 import SwiftUI
 
@@ -8,6 +12,7 @@ struct MainTabView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
     @StateObject private var adminNav = AdminNavigation.shared
     @State private var selectedTab = 0
+    @State private var showSubscriptionPrompt = false
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -32,6 +37,7 @@ struct MainTabView: View {
             // NEW: Leaderboard Tab
             NavigationView {
                 LeaderboardView()
+                    .environmentObject(authViewModel)
             }
             .tabItem {
                 Label("Leaderboard", systemImage: "trophy.fill")
@@ -41,6 +47,7 @@ struct MainTabView: View {
             // Profile Tab (moved to tab 3)
             NavigationView {
                 ProfileView()
+                    .environmentObject(authViewModel)
             }
             .tabItem {
                 Label("Profile", systemImage: "person.fill")
@@ -63,9 +70,13 @@ struct MainTabView: View {
                 .tag(4)
             }
         }
-        .accentColor(AppTheme.Brand.primary) // Tab bar tint color
+        .accentColor(Color("Primary")) // Tab bar tint color
         .sheet(isPresented: $adminNav.requiresAuth) {
             AdminAuthView()
+        }
+        .sheet(isPresented: $showSubscriptionPrompt) {
+            SubscriptionView()
+                .environmentObject(authViewModel)
         }
         .alert("Error", isPresented: $adminNav.showError) {
             Button("OK", role: .cancel) {}
@@ -78,6 +89,15 @@ struct MainTabView: View {
             appearance.configureWithOpaqueBackground()
             UITabBar.appearance().scrollEdgeAppearance = appearance
             
+            // Check subscription status
+            if let user = authViewModel.user,
+               user.subscriptionStatus == .none {
+                // Show subscription prompt after a short delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showSubscriptionPrompt = true
+                }
+            }
+            
             // Add haptic feedback for tab selection
             let generator = UIImpactFeedbackGenerator(style: .light)
             generator.prepare()
@@ -88,4 +108,58 @@ struct MainTabView: View {
             generator.impactOccurred()
         }
     }
+}
+
+/// Admin Authentication View
+struct AdminAuthView: View {
+    @EnvironmentObject var adminNav: AdminNavigation
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 70))
+                .foregroundColor(Color("Primary"))
+            
+            Text("Admin Authentication")
+                .font(.title)
+                .fontWeight(.bold)
+            
+            Text("Biometric authentication is required to access admin functions")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            Button(action: {
+                Task {
+                    await adminNav.authenticateAdmin()
+                }
+            }) {
+                Text("Authenticate Now")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color("Primary"))
+                    .cornerRadius(12)
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 20)
+            
+            Button(action: {
+                adminNav.requiresAuth = false
+            }) {
+                Text("Cancel")
+                    .foregroundColor(.secondary)
+            }
+            .padding(.top, 10)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Preview Provider
+#Preview {
+    MainTabView()
+        .environmentObject(AuthenticationViewModel())
 }
