@@ -4,7 +4,6 @@
 //
 //  Created by Claude on 1/30/25
 //  Version: 2.1.0
-//
 
 import SwiftUI
 import FirebaseFirestore
