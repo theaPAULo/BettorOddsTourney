@@ -86,16 +86,19 @@ class AuthenticationViewModel: ObservableObject {
         authService.signInWithGoogle(presenting: rootViewController) { [weak self] result in
             guard let self = self else { return }
             
-            DispatchQueue.main.async {
-                self.isLoading = false
-                
-                switch result {
-                case .success(let user):
-                    self.user = user
-                    self.isAuthenticated = true
-                case .failure(let error):
-                    self.error = error
-                    self.errorMessage = error.localizedDescription
+            // Use Task to handle potential async work
+            Task {
+                await MainActor.run {
+                    self.isLoading = false
+                    
+                    switch result {
+                    case .success(let user):
+                        self.user = user
+                        self.isAuthenticated = true
+                    case .failure(let error):
+                        self.error = error
+                        self.errorMessage = error.localizedDescription
+                    }
                 }
             }
         }

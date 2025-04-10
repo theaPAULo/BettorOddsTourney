@@ -12,12 +12,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Initialize Firebase configuration
         _ = FirebaseConfig.shared
         
-        // Add this right after Firebase initialization in your AppDelegate
-        TestService.shared.testFirebaseConnection { success, message in
-            if success {
-                print("✅ \(message)")
-            } else {
-                print("❌ \(message)")
+        // With this:
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            TestService.shared.testFirebaseConnection { success, message in
+                if success {
+                    print("✅ \(message)")
+                } else {
+                    print("❌ \(message)")
+                }
             }
         }
         

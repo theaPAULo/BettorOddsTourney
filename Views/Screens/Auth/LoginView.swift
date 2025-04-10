@@ -19,7 +19,7 @@ struct LoginView: View {
                     VStack(spacing: 24) {
                         // Logo and Title
                         VStack(spacing: 8) {
-                            Image("AppLogo") // Replace with your app logo
+                            Image("AppIcon") // Replace with your app logo
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 120, height: 120)
