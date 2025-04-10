@@ -1,6 +1,33 @@
 import Foundation
 import FirebaseFirestore
 
+// Error types for database operations
+enum DatabaseError: Error {
+    case documentNotFound
+    case invalidData
+    case parseError
+    case networkError
+    case permissionDenied
+    case unknown
+    
+    var description: String {
+        switch self {
+        case .documentNotFound:
+            return "Document not found"
+        case .invalidData:
+            return "Invalid data format"
+        case .parseError:
+            return "Failed to parse document"
+        case .networkError:
+            return "Network error occurred"
+        case .permissionDenied:
+            return "Permission denied"
+        case .unknown:
+            return "Unknown error occurred"
+        }
+    }
+}
+
 actor GameService {
     private let db = FirebaseConfig.shared.db
     

@@ -1,4 +1,4 @@
-// Repositories/UserRepository.swift
+// Repositories/Core/UserRepository.swift
 // Version: 1.0.0
 // Created: April 10, 2025
 // Description: Repository to handle user data operations
@@ -38,45 +38,42 @@ class UserRepository {
     func updatePreferences(for userId: String, preferences: UserPreferences) async throws {
         try await userService.updatePreferences(for: userId, preferences: preferences)
     }
-}
-// Repositories/UserRepository.swift
-
-// Add these methods to the existing UserRepository class
-
-/// Resets a user's weekly coins
-func resetWeeklyCoins(userId: String) async throws {
-    try await userService.resetWeeklyCoins(for: userId)
-}
-
-/// Updates a user's tournament coins
-func updateTournamentCoins(userId: String, amount: Int) async throws {
-    // Get current user data
-    guard let user = try await userService.fetchUser(id: userId) else {
-        throw NSError(domain: "UserRepository", code: 404,
-            userInfo: [NSLocalizedDescriptionKey: "User not found"])
+    
+    /// Resets a user's weekly coins
+    func resetWeeklyCoins(userId: String) async throws {
+        try await userService.resetWeeklyCoins(for: userId)
     }
     
-    // Calculate new coin amount
-    let newAmount = user.weeklyCoins + amount
-    
-    // Update coins in user document
-    try await userService.updateUser(id: userId, fields: ["weeklyCoins": newAmount])
-}
-
-/// Subscribes a user to the premium service
-func subscribeUser(userId: String) async throws {
-    // Set subscription to active with one month expiry
-    let expiryDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
-    try await userService.updateSubscription(for: userId, status: .active, expiryDate: expiryDate)
-}
-
-/// Cancels a user's subscription
-func cancelSubscription(userId: String) async throws {
-    // Set subscription status to cancelled but maintain existing expiry date
-    guard let user = try await userService.fetchUser(id: userId) else {
-        throw NSError(domain: "UserRepository", code: 404,
-            userInfo: [NSLocalizedDescriptionKey: "User not found"])
+    /// Updates a user's tournament coins
+    func updateTournamentCoins(userId: String, amount: Int) async throws {
+        // Get current user data
+        guard let user = try await userService.fetchUser(id: userId) else {
+            throw NSError(domain: "UserRepository", code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "User not found"])
+        }
+        
+        // Calculate new coin amount
+        let newAmount = user.weeklyCoins + amount
+        
+        // Update coins in user document
+        try await userService.updateUser(id: userId, fields: ["weeklyCoins": newAmount])
     }
     
-    try await userService.updateSubscription(for: userId, status: .cancelled, expiryDate: user.subscriptionExpiryDate)
+    /// Subscribes a user to the premium service
+    func subscribeUser(userId: String) async throws {
+        // Set subscription to active with one month expiry
+        let expiryDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+        try await userService.updateSubscription(for: userId, status: SubscriptionStatus.active, expiryDate: expiryDate)
+    }
+    
+    /// Cancels a user's subscription
+    func cancelSubscription(userId: String) async throws {
+        // Set subscription status to cancelled but maintain existing expiry date
+        guard let user = try await userService.fetchUser(id: userId) else {
+            throw NSError(domain: "UserRepository", code: 404,
+                userInfo: [NSLocalizedDescriptionKey: "User not found"])
+        }
+        
+        try await userService.updateSubscription(for: userId, status: SubscriptionStatus.cancelled, expiryDate: user.subscriptionExpiryDate)
+    }
 }
