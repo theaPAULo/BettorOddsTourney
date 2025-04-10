@@ -20,7 +20,7 @@ struct ContentView: View {
                     .environmentObject(authViewModel)
             } else {
                 // User is not logged in - show welcome/login screen
-                WelcomeView()
+                LoginView()
                     .environmentObject(authViewModel)
             }
         }
