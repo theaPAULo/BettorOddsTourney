@@ -2,75 +2,67 @@
 //  ContentView.swift
 //  BettorOdds
 //
-//  Version: 1.2.0 - Added phone verification support
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct ContentView: View {
-    @StateObject private var authViewModel = AuthenticationViewModel()
-    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var authViewModel = AuthenticationViewModel.shared
     
     var body: some View {
-        Group {
-            switch authViewModel.authState {
-            case .loading:
-                // Show loading screen while checking auth state
-                LoadingView()
-                    .onAppear {
-                        // Force auth check after brief delay to ensure proper initialization
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            authViewModel.checkAuthState()
-                        }
-                    }
-            
-            case .signedIn:
-                // Show main app interface when user is authenticated
+        ZStack {
+            if authViewModel.isAuthenticated {
+                // User is logged in - show main app content
                 MainTabView()
                     .environmentObject(authViewModel)
-            
-            case .signedOut:
-                // Show login screen when user is not authenticated
-                LoginView()
-                    .environmentObject(authViewModel)
-                
-            case .phoneVerification:
-                // Show phone verification screen
-                PhoneVerificationView()
-                    .environmentObject(authViewModel)
-                
-            case .pendingPhoneVerification:
-                // Keep showing phone verification screen but in code entry state
-                PhoneVerificationView()
+            } else {
+                // User is not logged in - show welcome/login screen
+                WelcomeView()
                     .environmentObject(authViewModel)
             }
         }
-        .onChange(of: scenePhase) { newPhase in
-            if newPhase == .active {
-                // Recheck auth state when app becomes active
-                authViewModel.checkAuthState()
-            }
+        .onAppear {
+            setupAppearance()
+        }
+    }
+    
+    /// Sets up the global app appearance
+    private func setupAppearance() {
+        // Configure navigation bar appearance
+        let navigationBarAppearance = UINavigationBar.appearance()
+        navigationBarAppearance.titleTextAttributes = [
+            .foregroundColor: UIColor(Color.textPrimary)
+        ]
+        
+        // Configure tab bar appearance
+        let tabBarAppearance = UITabBar.appearance()
+        tabBarAppearance.backgroundColor = UIColor(Color.backgroundPrimary)
+        tabBarAppearance.unselectedItemTintColor = UIColor(Color.textSecondary.opacity(0.5))
+        
+        // Set the status bar style
+        if #available(iOS 15.0, *) {
+            let navigationBarAppearance = UINavigationBarAppearance()
+            navigationBarAppearance.configureWithOpaqueBackground()
+            navigationBarAppearance.backgroundColor = UIColor(Color.backgroundPrimary)
+            UINavigationBar.appearance().standardAppearance = navigationBarAppearance
+            UINavigationBar.appearance().scrollEdgeAppearance = navigationBarAppearance
+            UINavigationBar.appearance().compactAppearance = navigationBarAppearance
+            
+            let tabBarAppearance = UITabBarAppearance()
+            tabBarAppearance.configureWithOpaqueBackground()
+            tabBarAppearance.backgroundColor = UIColor(Color.backgroundPrimary)
+            UITabBar.appearance().standardAppearance = tabBarAppearance
+            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
         }
     }
 }
 
-// Keep existing LoadingView struct unchanged
-struct LoadingView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle())
-                .scaleEffect(1.5)
-            
-            Text("Loading...")
-                .font(.headline)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+// MARK: - Preview
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
     }
-}
-
-#Preview {
-    ContentView()
 }

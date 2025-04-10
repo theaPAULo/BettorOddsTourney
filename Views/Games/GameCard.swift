@@ -275,11 +275,59 @@ extension View {
     }
 }
 
-// MARK: - Preview Provider
 #Preview {
     VStack(spacing: 20) {
+        // Create sample games manually
+        let game1 = Game(
+            id: "sample-game-1",
+            homeTeam: "Lakers",
+            awayTeam: "Warriors",
+            time: Date().addingTimeInterval(3600 * 3), // 3 hours from now
+            league: "NBA",
+            spread: -5.5,
+            totalBets: 34,
+            homeTeamColors: TeamColors.getTeamColors("Lakers"),
+            awayTeamColors: TeamColors.getTeamColors("Warriors"),
+            isFeatured: true,
+            manuallyFeatured: true,
+            isVisible: true,
+            isLocked: false
+        )
+        
+        let game2 = Game(
+            id: "sample-game-2",
+            homeTeam: "Celtics",
+            awayTeam: "Nets",
+            time: Date().addingTimeInterval(60 * 4), // 4 minutes from now
+            league: "NBA",
+            spread: 2.5,
+            totalBets: 22,
+            homeTeamColors: TeamColors.getTeamColors("Celtics"),
+            awayTeamColors: TeamColors.getTeamColors("Nets"),
+            isFeatured: false,
+            manuallyFeatured: false,
+            isVisible: true,
+            isLocked: false
+        )
+        
+        let game3 = Game(
+            id: "sample-game-3",
+            homeTeam: "Heat",
+            awayTeam: "Bulls",
+            time: Date().addingTimeInterval(-60 * 5), // Started 5 minutes ago
+            league: "NBA",
+            spread: -1.0,
+            totalBets: 45,
+            homeTeamColors: TeamColors.getTeamColors("Heat"),
+            awayTeamColors: TeamColors.getTeamColors("Bulls"),
+            isFeatured: false,
+            manuallyFeatured: false,
+            isVisible: true,
+            isLocked: true
+        )
+        
         GameCard(
-            game: Game.sampleGames[0],
+            game: game1,
             isFeatured: true,
             onSelect: {},
             globalSelectedTeam: .constant(nil)
@@ -287,18 +335,15 @@ extension View {
         
         // Preview with selected team
         GameCard(
-            game: Game.sampleGames[1],
+            game: game2,
             isFeatured: false,
             onSelect: {},
-            globalSelectedTeam: .constant((Game.sampleGames[1].id, .home))
+            globalSelectedTeam: .constant((game2.id, .home))
         )
         
         // Preview locked state
         GameCard(
-            game: {
-                var game = Game.sampleGames[0]
-                return game
-            }(),
+            game: game3,
             isFeatured: false,
             onSelect: {},
             globalSelectedTeam: .constant(nil)

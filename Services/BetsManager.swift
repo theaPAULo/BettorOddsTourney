@@ -2,155 +2,141 @@
 //  BetsManager.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 1/27/25.
-//
-
-
-//
-//  BetsManager.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 1/27/25.
-//  Version: 1.0.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import Foundation
-import Combine
-import Firebase
+import FirebaseFirestore
 import FirebaseAuth
 
-enum BetsError: Error {
-    case invalidBet
-    case networkError
-    case dailyLimitExceeded
-    case insufficientFunds
-    
-    var localizedDescription: String {
-        switch self {
-        case .invalidBet:
-            return "Invalid bet parameters"
-        case .networkError:
-            return "Network connection error. Please try again."
-        case .dailyLimitExceeded:
-            return "Daily betting limit exceeded"
-        case .insufficientFunds:
-            return "Insufficient funds"
-        }
-    }
-}
 
-@MainActor
 class BetsManager: ObservableObject {
+    // MARK: - Properties
+    @Published var myBets: [Bet] = []
+    @Published var isLoading = false
+    @Published var error: Error?
+    @Published var currentTournament: Tournament?
+    
+    private let db = FirebaseConfig.shared.db
+    private let betRepository: BetRepository
+    private let tournamentService = TournamentService.shared
+    
+    // MARK: - Shared Instance
     static let shared = BetsManager()
-    @Published private(set) var bets: [Bet] = []
-    @Published private(set) var isLoading = false
     
-    private let db = Firestore.firestore()
-    
-    func placeBet(_ bet: Bet) async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
+    // MARK: - Initialization
+    init() {
+        // Initialize bet repository
         do {
-            print("📝 Attempting to save bet to Firestore...")
-            let data = bet.toDictionary()
-            try await db.collection("bets").document(bet.id).setData(data)
-            bets.append(bet)
-            print("✅ Bet saved to Firestore with ID: \(bet.id)")
-        } catch let error as NSError {
-            print("❌ Error saving bet: \(error.localizedDescription)")
-            if error.domain == NSURLErrorDomain {
-                throw BetsError.networkError
-            }
-            throw error
-        }
-    }
-    
-    func fetchBets() async throws -> [Bet] {
-        guard let userId = Auth.auth().currentUser?.uid else {
-            print("❌ No user logged in")
-            throw NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"])
-        }
-        
-        // Add this right after getting currentUser?.uid
-        print("🔑 Query userId: \(userId)")
-        print("🔑 Expected userId from Firestore: hDr6MObDmAQRxB1o44E5EQp0ozw1")
-        print("🔑 Do they match? \(userId == "hDr6MObDmAQRxB1o44E5EQp0ozw1")")
-        print("🔑 Current userId for fetching: \(userId)")
-        
-        do {
-            print("📝 Starting Firestore query...")
-            let query = db.collection("bets")
-                .whereField("userId", isEqualTo: userId)
-                .order(by: "createdAt", descending: true)
-            
-            print("🔍 Executing query: \(query)")
-            let snapshot = try await query.getDocuments()
-            
-            print("📄 Got \(snapshot.documents.count) documents")
-            
-            let bets = snapshot.documents.compactMap { document -> Bet? in
-                print("Processing document ID: \(document.documentID)")
-                print("Document data: \(document.data())")
-                return Bet(document: document)
-            }
-            
-            print("✅ Successfully parsed \(bets.count) bets")
-            return bets
-            
-        } catch let error as NSError {
-            print("❌ Detailed error: \(error)")
-            print("❌ Error domain: \(error.domain)")
-            print("❌ Error code: \(error.code)")
-            throw error
-        }
-    }
-    
-    func cancelBet(_ betId: String) async throws {
-        isLoading = true
-        
-        do {
-            print("🎲 Attempting to cancel bet: \(betId)")
-            
-            // Update status in Firestore
-            try await db.collection("bets").document(betId).updateData([
-                "status": BetStatus.cancelled.rawValue,
-                "updatedAt": Timestamp(date: Date())
-            ])
-            
-            print("✅ Bet cancelled in Firestore")
-            
-            // Fetch fresh bets to update the list
-            bets = try await fetchBets()
-            
-            print("✅ Bets list refreshed")
-            
+            self.betRepository = try BetRepository()
         } catch {
-            print("❌ Error cancelling bet: \(error)")
-            throw error
+            fatalError("Failed to initialize BetRepository: \(error)")
         }
         
-        isLoading = false
+        // Load bets
+        loadMyBets()
     }
+    // MARK: - Public Methods
     
-    // MARK: - Private Methods
-    private func validateBet(_ bet: Bet) -> Bool {
-        // Check if bet amount is valid
-        guard bet.amount > 0 && bet.amount <= 100 else {
-            return false
+    /// Loads the current user's bets
+    func loadMyBets() {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            return
         }
         
-        // For green coins, check daily limit
-        if bet.coinType == .green {
-            let dailyTotal = bets
-                .filter { $0.coinType == .green && Calendar.current.isDateInToday($0.createdAt) }
-                .reduce(0) { $0 + $1.amount }
-            
-            guard (dailyTotal + bet.amount) <= 100 else {
-                return false
+        isLoading = true
+        
+        Task {
+            do {
+                // First load tournament info to filter by current tournament
+                await loadCurrentTournament()
+                
+                // Fetch bets filtered by current tournament
+                let tournamentId = currentTournament?.id
+                
+                // Load bets
+                let bets = try await betRepository.fetchUserBets(
+                    userId: userId,
+                    tournamentId: tournamentId
+                )
+                
+                // Update on main thread
+                await MainActor.run {
+                    self.myBets = bets
+                    self.isLoading = false
+                    self.error = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error
+                    self.isLoading = false
+                }
             }
         }
+    }
+    
+    /// Loads the current active tournament
+    @MainActor
+    func loadCurrentTournament() async {
+        do {
+            if let tournament = try await tournamentService.fetchActiveTournament() {
+                self.currentTournament = tournament
+            } else {
+                self.currentTournament = nil
+            }
+        } catch {
+            self.error = error
+            self.currentTournament = nil
+        }
+    }
+    
+    /// Cancels a pending bet
+    /// - Parameter bet: The bet to cancel
+    func cancelBet(_ bet: Bet) {
+        guard bet.status == .pending else {
+            // Can only cancel pending bets
+            return
+        }
         
-        return true
+        isLoading = true
+        
+        Task {
+            do {
+                // Cancel bet
+                try await betRepository.remove(id: bet.id)
+                
+                // Update bets list
+                if let index = myBets.firstIndex(where: { $0.id == bet.id }) {
+                    await MainActor.run {
+                        myBets.remove(at: index)
+                    }
+                }
+                
+                await MainActor.run {
+                    self.isLoading = false
+                    self.error = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    /// Gets tournament betting statistics
+    /// - Returns: Stats summary
+    func getTournamentStats() async throws -> TournamentBetStats {
+        guard let userId = Auth.auth().currentUser?.uid,
+              let tournamentId = currentTournament?.id else {
+            return TournamentBetStats()
+        }
+        
+        return try await betRepository.fetchTournamentStats(
+            userId: userId,
+            tournamentId: tournamentId
+        )
     }
 }

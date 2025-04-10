@@ -2,8 +2,8 @@
 //  TransactionRepository.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 1/27/25.
-//  Version: 1.1.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import Foundation
@@ -15,22 +15,39 @@ class TransactionRepository: Repository {
     
     let cacheFilename = "transactions.cache"
     let cacheExpiryTime: TimeInterval = 3600 // 1 hour
-    
-    private let transactionService: TransactionService
+    private var cachedTransactions: [String: Transaction] = [:]
     
     // MARK: - Initialization
     init() {
-        self.transactionService = TransactionService()
+        loadCachedTransactions()
     }
     
     // MARK: - Repository Protocol Methods
     
     func fetch(id: String) async throws -> Transaction? {
+        // Try cache first
+        if let cachedTransaction = cachedTransactions[id], isCacheValid() {
+            return cachedTransaction
+        }
+        
+        // If not in cache or cache invalid, fetch from network
+        guard NetworkMonitor.shared.isConnected else {
+            throw RepositoryError.networkError
+        }
+        
         do {
-            let transaction = try await transactionService.fetchTransaction(transactionId: id)
+            let document = try await FirebaseConfig.shared.db.collection("transactions").document(id).getDocument()
+            
+            guard let transaction = Transaction(document: document) else {
+                throw RepositoryError.itemNotFound
+            }
+            
+            // Save to cache
+            cachedTransactions[id] = transaction
+            try saveCachedTransactions()
+            
             return transaction
         } catch {
-            // If not found, return nil instead of throwing
             if case RepositoryError.itemNotFound = error {
                 return nil
             }
@@ -39,75 +56,100 @@ class TransactionRepository: Repository {
     }
     
     func save(_ transaction: Transaction) async throws {
-        _ = try await transactionService.createTransaction(transaction)
+        guard NetworkMonitor.shared.isConnected else {
+            throw RepositoryError.networkError
+        }
+        
+        try await FirebaseConfig.shared.db.collection("transactions").document(transaction.id).setData(transaction.toDictionary())
+        
+        // Update cache
+        cachedTransactions[transaction.id] = transaction
+        try saveCachedTransactions()
     }
     
     func remove(id: String) async throws {
-        // Transactions cannot be removed, only cancelled
-        throw RepositoryError.operationNotSupported
+        guard NetworkMonitor.shared.isConnected else {
+            throw RepositoryError.networkError
+        }
+        
+        try await FirebaseConfig.shared.db.collection("transactions").document(id).delete()
+        
+        // Remove from cache
+        cachedTransactions.removeValue(forKey: id)
+        try saveCachedTransactions()
     }
     
     func clearCache() throws {
-        // Implementation for clearing cache
+        cachedTransactions.removeAll()
+        try saveCachedTransactions()
+    }
+    
+    // MARK: - Cache Methods
+    
+    private func loadCachedTransactions() {
+        do {
+            let data = try loadFromCache()
+            let container = try JSONDecoder().decode(CacheContainer<Transaction>.self, from: data)
+            cachedTransactions = container.items
+        } catch {
+            cachedTransactions = [:]
+        }
+    }
+    
+    private func saveCachedTransactions() throws {
+        let container = CacheContainer(items: cachedTransactions)
+        let data = try JSONEncoder().encode(container)
+        try saveToCache(data)
     }
     
     // MARK: - Additional Methods
     
-    /// Fetches transactions for a user with optional filters
+    /// Fetches user's transactions
     /// - Parameters:
     ///   - userId: The user's ID
-    ///   - coinType: Optional filter for coin type
-    ///   - type: Optional filter for transaction type
+    ///   - limit: Maximum number of transactions
+    ///   - type: Optional transaction type filter
     /// - Returns: Array of transactions
     func fetchUserTransactions(
         userId: String,
-        coinType: CoinType? = nil,
-        type: TxType? = nil
+        limit: Int = 20,
+        type: TransactionType? = nil
     ) async throws -> [Transaction] {
-        return try await transactionService.fetchUserTransactions(
-            userId: userId,
-            coinType: coinType,
-            type: type
-        )
-    }
-    
-    /// Updates transaction status
-    /// - Parameters:
-    ///   - transactionId: The transaction's ID
-    ///   - status: The new status
-    func updateTransactionStatus(
-        transactionId: String,
-        status: TxStatus
-    ) async throws {
-        try await transactionService.updateTransactionStatus(
-            transactionId: transactionId,
-            status: status
-        )
-    }
-    
-    /// Calculates transaction statistics
-    func calculateStats(from transactions: [Transaction]) -> TxStats {
-        var stats = TxStats()
-        
-        for transaction in transactions {
-            switch transaction.type {
-            case .deposit:
-                stats.totalDeposits += transaction.amount
-            case .withdrawal:
-                stats.totalWithdrawals += transaction.amount
-            case .bet:
-                stats.totalBets += 1
-                stats.totalWagered += abs(transaction.amount)
-            case .win:
-                stats.totalWins += 1
-                stats.totalWon += transaction.amount
-            case .loss:
-                stats.totalLosses += 1
-            case .refund:
-                stats.totalRefunds += transaction.amount
+        guard NetworkMonitor.shared.isConnected else {
+            // Return cached transactions
+            var filteredTransactions = cachedTransactions.values.filter { $0.userId == userId }
+            
+            if let type = type {
+                filteredTransactions = filteredTransactions.filter { $0.type == type }
             }
+            
+            return Array(filteredTransactions.prefix(limit))
         }
         
-        return stats
+        // Start with base query
+        var query: Query = FirebaseConfig.shared.db.collection("transactions")
+            .whereField("userId", isEqualTo: userId)
+        
+        // Apply type filter if needed
+        if let type = type {
+            query = query.whereField("type", isEqualTo: type.rawValue)
+        }
+        
+        // Apply sort and limit
+        query = query.order(by: "timestamp", descending: true).limit(to: limit)
+        
+        // Execute query
+        let snapshot = try await query.getDocuments()
+        
+        // Process results
+        let transactions = snapshot.documents.compactMap { Transaction(document: $0) }
+        
+        // Cache each transaction
+        for transaction in transactions {
+            cachedTransactions[transaction.id] = transaction
+        }
+        try saveCachedTransactions()
+        
+        return transactions
     }
 }

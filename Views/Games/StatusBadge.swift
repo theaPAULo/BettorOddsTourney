@@ -3,51 +3,47 @@
 //  BettorOdds
 //
 //  Created by Paul Soni on 1/30/25.
-//  Version: 1.1.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 2.0.0 - Modified for tournament system
 //
 
 import SwiftUI
 
 struct StatusBadge: View {
+    // MARK: - Properties
     let status: BetStatus
     
-    private var statusColor: Color {
-        switch status {
-        case .pending:
-            return .statusWarning
-        case .partiallyMatched:
-            return .yellow
-        case .fullyMatched, .active:
-            return .primary
-        case .cancelled:
-            return .textSecondary
-        case .won:
-            return .statusSuccess
-        case .lost:
-            return .statusError
+    // MARK: - Body
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: status.icon)
+                .font(.system(size: 12))
+            
+            Text(status.rawValue)
+                .font(.system(size: 12, weight: .medium))
         }
+        .foregroundColor(status.color)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(status.color.opacity(0.15))
+        )
+        .overlay(
+            Capsule()
+                .stroke(status.color.opacity(0.25), lineWidth: 1)
+        )
     }
     
-    var body: some View {
-        Text(status.rawValue)
-            .font(.system(size: 12, weight: .medium))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(statusColor.opacity(0.2))
-            .foregroundColor(statusColor)
-            .cornerRadius(8)
+    // MARK: - Legacy Status Handling
+    // This handles any old status types from the P2P system during migration
+    init(status: BetStatus) {
+        // Map any legacy status to current ones
+        switch status.rawValue {
+        case "Partially Matched":
+            self.status = .pending
+        default:
+            self.status = status
+        }
     }
-}
-
-#Preview {
-    HStack {
-        StatusBadge(status: .pending)
-        StatusBadge(status: .partiallyMatched)
-        StatusBadge(status: .fullyMatched)
-        StatusBadge(status: .active)
-        StatusBadge(status: .won)
-        StatusBadge(status: .lost)
-        StatusBadge(status: .cancelled)
-    }
-    .padding()
 }

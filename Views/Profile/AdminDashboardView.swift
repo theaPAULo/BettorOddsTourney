@@ -2,202 +2,328 @@
 //  AdminDashboardView.swift
 //  BettorOdds
 //
-//  Created by Claude on 1/30/25
-//  Version: 2.1.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import SwiftUI
 import FirebaseFirestore
 
 struct AdminDashboardView: View {
-    @StateObject private var viewModel = AdminDashboardViewModel()
-    @State private var selectedTab = AdminTab.overview
-    @State private var scrollOffset: CGFloat = 0  // Track scroll position
+    @EnvironmentObject var adminNavigation: AdminNavigation
+    @StateObject private var viewModel = AdminViewModel()
+    @State private var selectedTab = 0
     
-    // MARK: - Tab Enum
-    enum AdminTab {
-        case overview
-        case users
-        case bets
-        case transactions
-        
-        var title: String {
-            switch self {
-            case .overview: return "Overview"
-            case .users: return "Users"
-            case .bets: return "Bets"
-            case .transactions: return "Transactions"
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .overview: return "chart.bar.fill"
-            case .users: return "person.2.fill"
-            case .bets: return "dollarsign.circle.fill"
-            case .transactions: return "arrow.left.arrow.right"
-            }
-        }
-    }
-    
-    // MARK: - Scroll Tracking
-    private struct ScrollOffsetPreferenceKey: PreferenceKey {
-        static var defaultValue: CGFloat = 0
-        
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
-        }
-    }
-    
-    private struct ScrollOffsetModifier: ViewModifier {
-        let coordinateSpace: String
-        @Binding var offset: CGFloat
-        
-        func body(content: Content) -> some View {
-            content
-                .overlay(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: proxy.frame(in: .named(coordinateSpace)).minY
-                            )
-                    }
-                )
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                    offset = value
-                }
-        }
-    }
-    
-    // MARK: - Body
     var body: some View {
-        NavigationView {
-            ZStack {
-                // Animated Background
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color("Primary").opacity(0.2),
-                        Color.white.opacity(0.1),
-                        Color("Primary").opacity(0.2)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .hueRotation(.degrees(scrollOffset / 2))
-                .ignoresSafeArea()
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header with system health
+                header
                 
-                VStack(spacing: 0) {
-                    // Admin Header
+                // Tab selection
+                Picker("", selection: $selectedTab) {
+                    Text("Overview").tag(0)
+                    Text("Users").tag(1)
+                    Text("Tournaments").tag(2)
+                    Text("Bets").tag(3)
+                    Text("Transactions").tag(4)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+                
+                // Tab content
+                Group {
+                    if selectedTab == 0 {
+                        overviewSection
+                    } else if selectedTab == 1 {
+                        AdminUsersSection()
+                    } else if selectedTab == 2 {
+                        tournamentSection
+                    } else if selectedTab == 3 {
+                        AdminBetsSection()
+                    } else if selectedTab == 4 {
+                        AdminTransactionsSection()
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding(.top)
+        }
+        .navigationTitle("Admin Dashboard")
+        .background(Color.backgroundPrimary.edgesIgnoringSafeArea(.all))
+        .onAppear {
+            Task {
+                await viewModel.loadSystemStats()
+                await viewModel.loadTournaments()
+            }
+        }
+    }
+    
+    // MARK: - Components
+    
+    private var header: some View {
+        VStack(spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("System Status")
+                        .font(.headline)
+                    
                     HStack {
-                        Text("Admin Dashboard")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(AppTheme.Brand.primary)
-                        Spacer()
-                        Button(action: {
-                            Task {
-                                await viewModel.refreshData()
-                            }
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundColor(AppTheme.Brand.primary)
-                        }
+                        Circle()
+                            .fill(Color(viewModel.systemHealth.status.color))
+                            .frame(width: 10, height: 10)
+                        
+                        Text(viewModel.systemHealth.status.rawValue)
+                            .font(.subheadline)
+                            .foregroundColor(Color(viewModel.systemHealth.status.color))
                     }
-                    .padding(.top, -60)
-                    .padding(.horizontal)
-                    
-                    // Quick Actions Section
-                    VStack(spacing: 12) {
-                        // Game Management Button
-                        NavigationLink(destination: AdminGameManagementView()) {
-                            HStack {
-                                Image(systemName: "gamecontroller.fill")
-                                Text("Game Management")
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .padding()
-                            .background(Color.backgroundSecondary)
-                            .cornerRadius(12)
-                        }
-                        .buttonStyle(PlainButtonStyle())
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    Task {
+                        await viewModel.loadSystemStats()
                     }
-                    .padding(.horizontal)
-                    
-                    // Tab Selection
-                    HStack(spacing: 0) {
-                        ForEach([AdminTab.overview, .users, .bets, .transactions], id: \.self) { tab in
-                            AdminTabButton(
-                                title: tab.title,
-                                icon: tab.icon,
-                                isSelected: selectedTab == tab
-                            ) {
-                                withAnimation {
-                                    selectedTab = tab
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    
-                    // Content
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            switch selectedTab {
-                            case .overview:
-                                AdminOverviewSection(stats: viewModel.stats)
-                            case .users:
-                                AdminUsersSection(users: viewModel.users)
-                            case .bets:
-                                AdminBetsSection(bets: viewModel.bets)
-                            case .transactions:
-                                AdminTransactionsSection(transactions: viewModel.transactions)
-                            }
-                        }
-                        .padding()
-                    }
-                    .refreshable {
-                        await viewModel.refreshData()
-                    }
-                    .modifier(ScrollOffsetModifier(coordinateSpace: "scroll", offset: $scrollOffset))
-                    .coordinateSpace(name: "scroll")
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundColor(.primary)
                 }
             }
-            .background(Color.backgroundPrimary.ignoresSafeArea())
-            .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.errorMessage ?? "An unknown error occurred")
+            
+            HStack {
+                Spacer()
+                
+                VStack {
+                    Text("Latency")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(viewModel.systemHealth.formattedLatency)
+                        .font(.subheadline)
+                }
+                
+                Spacer()
+                
+                VStack {
+                    Text("Processing")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(viewModel.systemHealth.formattedProcessingRate)
+                        .font(.subheadline)
+                }
+                
+                Spacer()
+                
+                VStack {
+                    Text("Error Rate")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text(viewModel.systemHealth.formattedErrorRate)
+                        .font(.subheadline)
+                }
+                
+                Spacer()
             }
-            .navigationBarHidden(true)
+        }
+        .padding()
+        .background(Color.backgroundSecondary)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    private var overviewSection: some View {
+            VStack(spacing: 20) {
+                // Stats cards
+                HStack {
+                    StatCard(title: "Total Users", value: "\(viewModel.totalUsers)", icon: "person.fill", color: .blue)
+                    StatCard(title: "Active Subscribers", value: "\(viewModel.activeSubscribers)", icon: "star.fill", color: .green)
+                }
+                
+                HStack {
+                    StatCard(title: "Total Bets", value: "\(viewModel.totalBets)", icon: "sportscourt.fill", color: .orange)
+                    StatCard(title: "Active Tournaments", value: "\(viewModel.activeTournaments.count)", icon: "trophy.fill", color: .purple)
+                }
+                
+                // Quick actions
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Quick Actions")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 8) {
+                        NavigationLink(destination: CreateTournamentView()) {
+                            ActionButton(title: "Create Tournament", icon: "plus.circle.fill", color: .green)
+                        }
+                        
+                        NavigationLink(destination: AdminSettingsView()) {
+                            ActionButton(title: "App Settings", icon: "gear", color: .blue)
+                        }
+                        
+                        NavigationLink(destination: AdminSystemHealthView()) {
+                            ActionButton(title: "System Health", icon: "waveform.path.ecg", color: .orange)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+    
+    private var tournamentSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Tournaments")
+                .font(.title2)
+                .fontWeight(.bold)
+                .padding(.horizontal)
+            
+            // Active tournaments
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Active Tournaments")
+                    .font(.headline)
+                    .padding(.horizontal)
+                
+                if viewModel.activeTournaments.isEmpty {
+                    Text("No active tournaments")
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                } else {
+                    ForEach(viewModel.activeTournaments) { tournament in
+                        AdminTournamentRow(tournament: tournament)
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            
+            // Completed tournaments
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Completed Tournaments")
+                    .font(.headline)
+                    .padding(.horizontal)
+                
+                if viewModel.completedTournaments.isEmpty {
+                    Text("No completed tournaments")
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                } else {
+                    ForEach(viewModel.completedTournaments.prefix(3)) { tournament in
+                        AdminTournamentRow(tournament: tournament)
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            
+            // Create tournament button
+            Button(action: {
+                // Action to create new tournament
+            }) {
+                HStack {
+                    Image(systemName: "plus")
+                    Text("Create Tournament")
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.blue)
+                .foregroundColor(.white)
+                .cornerRadius(8)
+            }
+            .padding(.horizontal)
+            .padding(.top, 12)
         }
     }
 }
 
-// MARK: - Supporting Views
-struct AdminTabButton: View {
+
+struct ActionButton: View {
     let title: String
     let icon: String
-    let isSelected: Bool
-    let action: () -> Void
+    let color: Color
     
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                Text(title)
-                    .font(.system(size: 12))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(isSelected ? AppTheme.Brand.primary.opacity(0.1) : Color.clear)
-            .foregroundColor(isSelected ? AppTheme.Brand.primary : .gray)
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(color)
+            
+            Text(title)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
         }
+        .padding()
+        .background(Color.backgroundSecondary)
+        .cornerRadius(8)
     }
 }
 
-// MARK: - Preview
+struct AdminTournamentRow: View {
+    let tournament: Tournament
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(tournament.name)
+                    .font(.system(size: 16, weight: .medium))
+                
+                Text(tournament.formattedDateRange)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("$\(Int(tournament.totalPrizePool))")
+                    .font(.system(size: 16, weight: .medium))
+                
+                HStack {
+                    Text("\(tournament.participantCount) participants")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                    
+                    Text(tournament.status.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(tournament.status.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(tournament.status.color.opacity(0.1))
+                        .cornerRadius(4)
+                }
+            }
+        }
+        .padding()
+        .background(Color.backgroundPrimary)
+        .cornerRadius(8)
+    }
+}
+
+// Placeholder Views
+struct CreateTournamentView: View {
+    var body: some View {
+        Text("Create Tournament View")
+    }
+}
+
+struct AdminSettingsView: View {
+    var body: some View {
+        Text("Admin Settings View")
+    }
+}
+
+struct AdminSystemHealthView: View {
+    var body: some View {
+        Text("System Health View")
+    }
+}
+
 #Preview {
-    AdminDashboardView()
+    NavigationView {
+        AdminDashboardView()
+            .environmentObject(AdminNavigation.shared)
+    }
 }

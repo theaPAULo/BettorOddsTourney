@@ -75,8 +75,25 @@ struct FeaturedGameCard: View {
 }
 
 #Preview {
-    FeaturedGameCard(
-        game: Game.sampleGames[0],
+    // Import Game+Samples to access the sample games
+    let game = Game(
+        id: "sample-game-1",
+        homeTeam: "Lakers",
+        awayTeam: "Warriors",
+        time: Date().addingTimeInterval(3600 * 3), // 3 hours from now
+        league: "NBA",
+        spread: -5.5,
+        totalBets: 34,
+        homeTeamColors: TeamColors.getTeamColors("Lakers"),
+        awayTeamColors: TeamColors.getTeamColors("Warriors"),
+        isFeatured: true,
+        manuallyFeatured: true,
+        isVisible: true,
+        isLocked: false
+    )
+    
+    return FeaturedGameCard(
+        game: game,
         onSelect: {}
     )
     .padding()

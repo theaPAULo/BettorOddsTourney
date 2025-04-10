@@ -2,16 +2,8 @@
 //  TournamentService.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 4/9/25.
-//
-
-
-//
-//  TournamentService.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 4/9/25.
-//  Version: 1.0.0 - Initial implementation
+//  Updated by Paul Soni on 4/9/25
+//  Version: 1.0.1 - Fixed missing try
 //
 
 import Foundation
@@ -207,7 +199,7 @@ actor TournamentService {
         }
         
         // Check if user already has a leaderboard entry
-        let leaderboardQuery = await db.collection("leaderboard")
+        let leaderboardQuery = try await db.collection("leaderboard")
             .whereField("tournamentId", isEqualTo: tournamentId)
             .whereField("userId", isEqualTo: userId)
             .limit(to: 1)

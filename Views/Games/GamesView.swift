@@ -2,312 +2,305 @@
 //  GamesView.swift
 //  BettorOdds
 //
-//  Created by Assistant on 1/29/25.
-//  Version: 2.0.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct GamesView: View {
     // MARK: - Properties
     @StateObject private var viewModel = GamesViewModel()
-    @EnvironmentObject var authViewModel: AuthenticationViewModel
-    @State private var selectedGame: Game?
+    @ObservedObject private var authViewModel = AuthenticationViewModel.shared
     @State private var showBetModal = false
-    @State private var hasSelectedGame = false
-    @State private var selectedLeague = "NBA"
-    @State private var globalSelectedTeam: (gameId: String, team: TeamSelection)?
-    @State private var scrollOffset: CGFloat = 0
+    @State private var selectedGame: Game?
+    @State private var selectedTeam: (gameId: String, team: TeamSelection)?
     
-    let leagues = ["NBA", "NFL"]
-    
-    // Background gradient colors
-    private var backgroundGradient: LinearGradient {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color("Primary").opacity(0.2),
-                Color.white.opacity(0.1),
-                Color("Primary").opacity(0.2)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-    
+    // MARK: - Body
     var body: some View {
         ZStack {
-            // Animated Background
-            backgroundGradient
-                .hueRotation(.degrees(scrollOffset / 2))
-                .ignoresSafeArea()
+            // Background
+            Color.backgroundPrimary.edgesIgnoringSafeArea(.all)
             
             VStack(spacing: 0) {
-                // Enhanced Header
-                VStack(spacing: 8) {
-                    Text("BettorOdds")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color("Primary"))
-                        .shadow(color: Color("Primary").opacity(0.3), radius: 2, x: 0, y: 2)
-                    
-                    // Balance Display
-                    HStack(spacing: 16) {
-                        CoinBalanceView(
-                            emoji: "🟡",
-                            amount: authViewModel.user?.yellowCoins ?? 0
-                        )
-                        CoinBalanceView(
-                            emoji: "💚",
-                            amount: authViewModel.user?.greenCoins ?? 0
-                        )
-                    }
-                    .padding(.horizontal)
-                    
-                    // Daily Limit Indicator
-                    if let dailyUsed = authViewModel.user?.dailyGreenCoinsUsed {
-                        DailyLimitProgressView(used: dailyUsed)
-                            .padding(.horizontal)
-                    }
-                }
-                .padding(.top)
+                // Header and wallet
+                headerView
                 
-                // League Selector
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 20) {
-                        ForEach(leagues, id: \.self) { league in
-                            LeagueButton(
-                                league: league,
-                                isSelected: selectedLeague == league
-                            ) {
-                                withAnimation(.spring()) {
-                                    selectedLeague = league
-                                    globalSelectedTeam = nil
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
+                // Tournament card if in tournament
+                if let tournament = viewModel.currentTournament {
+                    TournamentCard(tournament: tournament)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
-                .padding(.vertical, 8)
                 
-                // Games List
-                ScrollView {
-                    // Debug Logging
-                    let _ = print("🎮 Total games before filtering: \(viewModel.games.count)")
-                    let _ = viewModel.games.forEach { game in
-                        print("""
-                            🏟️ Game: \(game.homeTeam) vs \(game.awayTeam)
-                            ⏰ Time: \(game.time)
-                            🔒 Should be locked: \(game.shouldBeLocked)
-                            🔐 Is locked: \(game.isLocked)
-                            👀 Is visible: \(game.isVisible)
-                            🏈 League: \(game.league)
-                            ⭐️ Is featured: \(game.id == viewModel.featuredGame?.id)
-                            """)
-                    }
-                    
-                    LazyVStack(spacing: 16) {
-                        // Display featured game first if exists
-                        if let featured = viewModel.featuredGame {
-                            let _ = print("⭐️ Featured game: \(featured.homeTeam) vs \(featured.awayTeam)")
-                            FeaturedGameCard(
-                                game: featured,
-                                onSelect: {
-                                    selectedGame = featured
-                                    showBetModal = true
-                                }
-                            )
-                            .padding(.horizontal)
-                        }
-                        
-                        // Display rest of the games
-                        let filteredGames = viewModel.games.filter { game in
-                            let shouldShow = game.isVisible &&
-                            game.league == selectedLeague &&
-                            game.id != viewModel.featuredGame?.id
-                            
-                            print("""
-                                🎯 Filtering game: \(game.homeTeam) vs \(game.awayTeam)
-                                ✅ Is visible: \(game.isVisible)
-                                🏈 League match: \(game.league == selectedLeague)
-                                ⭐️ Not featured: \(game.id != viewModel.featuredGame?.id)
-                                📍 Final show decision: \(shouldShow)
-                                """)
-                            
-                            return shouldShow
-                        }.sorted { $0.sortPriority == $1.sortPriority ?
-                            $0.time < $1.time :
-                            $0.sortPriority < $1.sortPriority }
-                        
-                        ForEach(filteredGames) { game in
-                            GameCard(
-                                game: game,
-                                isFeatured: false,
-                                onSelect: {
-                                    selectedGame = game
-                                    showBetModal = true
-                                },
-                                globalSelectedTeam: $globalSelectedTeam
-                            )
-                            .padding(.horizontal)
-                        }
-                    }
-                    .padding(.vertical)
+                // Tab selection for games
+                gamesTabPickerView
+                
+                // Content based on selection
+                if viewModel.isLoading {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Spacer()
+                } else if viewModel.games.isEmpty {
+                    emptyStateView
+                } else {
+                    gamesList
                 }
-                .refreshable {
-                    print("♻️ Pull-to-refresh triggered")
-                    await viewModel.refreshGames()
-                }
-                .modifier(ScrollOffsetModifier(coordinateSpace: "scroll", offset: $scrollOffset))
-                .coordinateSpace(name: "scroll")
+            }
+            .padding(.top, 1) // Add a tiny bit of padding to prevent layout issues
+        }
+        .onAppear {
+            Task {
+                await viewModel.loadGames()
             }
         }
         .sheet(isPresented: $showBetModal) {
-            globalSelectedTeam = nil
-        } content: {
-            if let game = selectedGame,
-               let user = authViewModel.user {
+            if let game = selectedGame, let user = authViewModel.user {
+                // Create BetModalViewModel and pass the parameters correctly
+                let betViewModel = BetModalViewModel(game: game, user: user)
+                
                 BetModal(
+                    viewModel: betViewModel,
+                    isPresented: $showBetModal,
+                    selectedTeam: $selectedTeam,
                     game: game,
-                    user: user,
-                    isPresented: $showBetModal
+                    user: user
                 )
             }
         }
-        .onAppear {
-            print("📱 Games screen appeared - refreshing data")
-            Task {
-                await viewModel.refreshGames()
+    }
+    
+    // MARK: - Components
+    
+    // Header view with wallet info
+    private var headerView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                // Logo or title
+                Text("BettorOdds")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.textPrimary)
+                
+                Spacer()
+                
+                // Wallet preview
+                if let user = authViewModel.user {
+                    HStack(spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text("🏆")
+                                .font(.system(size: 18))
+                            
+                            Text("\(user.weeklyCoins)")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.textPrimary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.backgroundSecondary)
+                        .cornerRadius(12)
+                    }
+                }
             }
+            .padding(.horizontal)
+            .padding(.top, 4)
+            .padding(.bottom, 12)
+            
+            Divider()
+                .background(Color.textSecondary.opacity(0.2))
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            print("📱 App entering foreground - refreshing games")
-            Task {
-                await viewModel.refreshGames()
+    }
+    
+    // Games tab selection
+    private var gamesTabPickerView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Picker("Game Types", selection: $viewModel.selectedGameType) {
+                    Text("All").tag(GameType.all)
+                    Text("Basketball").tag(GameType.basketball)
+                    Text("Football").tag(GameType.football)
+                    Text("Baseball").tag(GameType.baseball)
+                    Text("Soccer").tag(GameType.soccer)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+                .padding(.vertical, 8)
             }
+            
+            Divider()
+                .background(Color.textSecondary.opacity(0.2))
+        }
+    }
+    
+    // Games list
+    private var gamesList: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                // Featured games section
+                if !viewModel.featuredGames.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Featured")
+                            .font(.system(size: 20, weight: .bold))
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 16) {
+                                ForEach(viewModel.featuredGames) { game in
+                                    FeaturedGameCard(game: game) {
+                                        selectedGame = game
+                                        showBetModal = true
+                                    }
+                                    .frame(width: 280)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                }
+                
+                // Regular games
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Upcoming Games")
+                        .font(.system(size: 20, weight: .bold))
+                        .padding(.horizontal)
+                    
+                    ForEach(viewModel.filteredGames) { game in
+                        GameCard(
+                            game: game,
+                            isFeatured: false,
+                            onSelect: {
+                                selectedGame = game
+                                showBetModal = true
+                            },
+                            globalSelectedTeam: $selectedTeam
+                        )
+                        .padding(.horizontal)
+                    }
+                }
+                
+                // Padding at bottom for better scrolling experience
+                Color.clear.frame(height: 40)
+            }
+            .padding(.vertical, 8)
+        }
+        .refreshable {
+            await viewModel.loadGames()
+        }
+    }
+    
+    // Empty state
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: "sportscourt")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary.opacity(0.5))
+            
+            Text("No Games Available")
+                .font(.title3)
+                .fontWeight(.medium)
+            
+            Text("Check back soon for upcoming games.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            
+            Button(action: {
+                Task {
+                    await viewModel.loadGames()
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh")
+                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 12)
+                .background(Color("Primary"))
+                .cornerRadius(10)
+            }
+            .padding(.top, 10)
+            
+            Spacer()
         }
     }
 }
+
+// MARK: - Game Type
+enum GameType {
+    case all
+    case basketball
+    case football
+    case baseball
+    case soccer
+}
+
+// MARK: - Team Selection
+enum TeamSelection {
+    case home
+    case away
+}
+
+// MARK: - Tournament Card
+struct TournamentCard: View {
+    let tournament: Tournament
     
-    // MARK: - Supporting Views
-    
-    struct CoinBalanceView: View {
-        let emoji: String
-        let amount: Int
-        
-        var body: some View {
-            HStack(spacing: 4) {
-                Text(emoji)
-                    .font(.system(size: 18))
-                Text("\(amount)")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.primary)
-            }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
-            .background(Color.white.opacity(0.15))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-        }
-    }
-    
-    struct DailyLimitProgressView: View {
-        let used: Int
-        let limit: Int = 100
-        
-        var progress: CGFloat {
-            min(CGFloat(used) / CGFloat(limit), 1.0)
-        }
-        
-        var body: some View {
+    var body: some View {
+        HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Daily Limit")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                Text(tournament.name)
+                    .font(.headline)
                 
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.2))
-                        
-                        Rectangle()
-                            .fill(Color("Primary"))
-                            .frame(width: geometry.size.width * progress)
-                    }
-                }
-                .frame(height: 4)
-                .cornerRadius(2)
-                
-                Text("💚 \(used)/\(limit)")
-                    .font(.system(size: 12))
+                Text("\(tournament.daysRemaining) days remaining")
+                    .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .frame(height: 40)
-        }
-    }
-    
-    struct LeagueButton: View {
-        let league: String
-        let isSelected: Bool
-        let action: () -> Void
-        
-        var body: some View {
-            Button(action: action) {
-                Text(league)
-                    .font(.system(size: 16, weight: .semibold))
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(isSelected ? Color("Primary") : Color.gray.opacity(0.1))
-                            .shadow(color: isSelected ? Color("Primary").opacity(0.5) : .clear, radius: 6, x: 0, y: 3)
-                    )
-                    .foregroundColor(isSelected ? .white : Color("Primary"))
-                    .overlay(
-                        Capsule()
-                            .stroke(isSelected ? Color.clear : Color("Primary").opacity(0.3), lineWidth: 1)
-                    )
+            
+            Spacer()
+            
+            // Prize pool info
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Prize Pool")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("$\(Int(tournament.totalPrizePool))")
+                    .font(.headline)
+                    .foregroundColor(Color("Primary"))
             }
-            .buttonStyle(ScaleButtonStyle())
         }
-    }
-    
-    struct ScrollOffsetPreferenceKey: PreferenceKey {
-        static var defaultValue: CGFloat = 0
-        
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
-        }
-    }
-    
-    // Helper view modifier to track scroll offset
-    struct ScrollOffsetModifier: ViewModifier {
-        let coordinateSpace: String
-        @Binding var offset: CGFloat
-        
-        func body(content: Content) -> some View {
-            content
-                .overlay(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: proxy.frame(in: .named(coordinateSpace)).minY
-                            )
-                    }
+        .padding()
+        .background(
+            Color.backgroundSecondary.opacity(0.8)
+        )
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color("Primary").opacity(0.6),
+                            Color("Primary").opacity(0.2)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
                 )
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                    offset = value
-                }
-        }
+        )
     }
+}
 
-
-// MARK: - Preview
+// Preview
 #Preview {
     GamesView()
-        .environmentObject(AuthenticationViewModel())
 }

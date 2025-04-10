@@ -50,7 +50,7 @@ struct BetCard: View {
                         .font(.system(size: 14))
                         .foregroundColor(.textSecondary)
                     HStack {
-                        Text(bet.coinType.emoji)
+                        Text(bet.coinEmoji)
                         Text("\(bet.amount)")
                             .font(.system(size: 18, weight: .semibold))  // Larger font
                             .foregroundColor(.textPrimary)
@@ -158,7 +158,7 @@ struct BetCard: View {
                         bet: Bet(
                             userId: "test",
                             gameId: "1",
-                            coinType: .yellow,
+                            tournamentId: "tournament1",
                             amount: 100,
                             initialSpread: -5.5,
                             team: "Lakers",
@@ -173,7 +173,7 @@ struct BetCard: View {
                             var bet = Bet(
                                 userId: "test",
                                 gameId: "2",
-                                coinType: .green,
+                                tournamentId: "tournament1",
                                 amount: 50,
                                 initialSpread: 3.5,
                                 team: "Warriors",
@@ -191,7 +191,7 @@ struct BetCard: View {
                             var bet = Bet(
                                 userId: "test",
                                 gameId: "3",
-                                coinType: .yellow,
+                                tournamentId: "tournament1",
                                 amount: 75,
                                 initialSpread: 2.0,
                                 team: "Celtics",

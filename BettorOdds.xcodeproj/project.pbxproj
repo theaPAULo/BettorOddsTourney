@@ -43,6 +43,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E443073E2DA6F0F000D1E651 /* Exceptions for "Models" folder in "BettorOdds" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Game+Samples.swift",
+			);
+			target = E494E2AE2D4704330020327A /* BettorOdds */;
+		};
 		E494B3A52D57CE930042A4C5 /* Exceptions for "BettorOdds" folder in "BettorOdds" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -51,6 +58,16 @@
 			target = E494E2AE2D4704330020327A /* BettorOdds */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		E443073F2DA6F0F000D1E651 /* Exceptions for "Models" folder in "Copy Bundle Resources" phase from "BettorOdds" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = E494E2AD2D4704330020327A /* Resources */;
+			membershipExceptions = (
+				"Game+Samples.swift",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E43BC6602D49392900F7AE5C /* Documentation */ = {
@@ -83,6 +100,10 @@
 		};
 		E494E2D22D4706F60020327A /* Models */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E443073E2DA6F0F000D1E651 /* Exceptions for "Models" folder in "BettorOdds" target */,
+				E443073F2DA6F0F000D1E651 /* Exceptions for "Models" folder in "Copy Bundle Resources" phase from "BettorOdds" target */,
+			);
 			path = Models;
 			sourceTree = "<group>";
 		};

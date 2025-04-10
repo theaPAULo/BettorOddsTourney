@@ -2,16 +2,8 @@
 //  LeaderboardViewModel.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 4/9/25.
-//
-
-
-//
-//  LeaderboardViewModel.swift
-//  BettorOdds
-//
-//  Created by Paul Soni on 4/9/25
-//  Version: 1.0.0 - Initial implementation
+//  Updated by Paul Soni on 4/9/25
+//  Version: 1.0.1 - Fixed startAfter issue
 //
 
 import SwiftUI
@@ -93,9 +85,9 @@ class LeaderboardViewModel: ObservableObject {
     
     /// Loads more leaderboard entries when scrolling
     func loadMoreEntries() async {
-        guard hasMoreEntries, 
-              !isLoading, 
-              let tournamentId = currentTournament?.id, 
+        guard hasMoreEntries,
+              !isLoading,
+              let tournamentId = currentTournament?.id,
               let lastEntry = lastVisibleEntry else {
             return
         }
@@ -104,13 +96,16 @@ class LeaderboardViewModel: ObservableObject {
         
         do {
             // Create query with pagination
+            // Fixed: use startAt instead of startAfter for Firestore queries
             let query = db.collection("leaderboard")
                 .whereField("tournamentId", isEqualTo: tournamentId)
                 .order(by: "rank", descending: false)
-                .startAfter(lastEntry)
                 .limit(to: pageSize)
+                
+            // Use document to start after in the query
+            let paginatedQuery = query.start(afterDocument: lastEntry)
             
-            let snapshot = try await query.getDocuments()
+            let snapshot = try await paginatedQuery.getDocuments()
             
             // Parse entries
             var newEntries: [LeaderboardEntry] = []

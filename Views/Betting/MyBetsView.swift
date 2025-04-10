@@ -2,219 +2,236 @@
 //  MyBetsView.swift
 //  BettorOdds
 //
-//  Created by Claude on 2/2/25
-//  Version: 2.1.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import SwiftUI
-import Combine
-import Firebase
 import FirebaseAuth
 
 struct MyBetsView: View {
-    // MARK: - Properties
     @StateObject private var viewModel = MyBetsViewModel()
-    @State private var selectedFilter = BetFilter.active
-    @State private var scrollOffset: CGFloat = 0
+    @State private var selectedFilter: BetStatus? = nil
+    @State private var showingFilters = false
     
-    // MARK: - Private Types
-    private struct ScrollOffsetPreferenceKey: PreferenceKey {
-        static var defaultValue: CGFloat = 0
-        
-        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-            value = nextValue()
-        }
-    }
-    
-    private struct ScrollOffsetModifier: ViewModifier {
-        let coordinateSpace: String
-        @Binding var offset: CGFloat
-        
-        func body(content: Content) -> some View {
-            content
-                .overlay(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: proxy.frame(in: .named(coordinateSpace)).minY
-                            )
-                    }
-                )
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                    offset = value
-                }
-        }
-    }
-    
-    // MARK: - ViewModel
-    @MainActor
-    class MyBetsViewModel: ObservableObject {
-        @Published private(set) var bets: [Bet] = []
-        @Published private(set) var isLoading = false
-        @Published var showError = false
-        @Published var errorMessage: String?
-        
-        private let betsManager = BetsManager.shared
-        
-        init() {
-            loadBets()
-        }
-        
-        func loadBets() {
-            isLoading = true
-            
-            Task { @MainActor in
-                do {
-                    bets = try await betsManager.fetchBets()
-                    isLoading = false
-                } catch {
-                    errorMessage = error.localizedDescription
-                    showError = true
-                    isLoading = false
-                }
-            }
-        }
-        
-        func filteredBets(for filter: MyBetsView.BetFilter) -> [Bet] {
-            switch filter {
-            case .active:
-                return bets.filter { $0.status == .active || $0.status == .pending }
-            case .completed:
-                return bets.filter { $0.status == .won || $0.status == .lost }
-            case .all:
-                return bets
-            }
-        }
-        
-        func cancelBet(_ bet: Bet) async {
-            print("🎲 ViewModel received cancel request for bet: \(bet.id)")
-            isLoading = true
-            
-            do {
-                print("🎲 Calling BetsManager.cancelBet")
-                try await BetsManager.shared.cancelBet(bet.id)
-                print("✅ Bet successfully cancelled")
-                await loadBets()
-                print("✅ Bets reloaded")
-            } catch {
-                print("❌ Error cancelling bet: \(error)")
-                errorMessage = error.localizedDescription
-                showError = true
-            }
-            
-            isLoading = false
-        }
-    }
-    
-    // MARK: - Body
     var body: some View {
         NavigationView {
             ZStack {
-                // Animated Background
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color("Primary").opacity(0.2),
-                        Color.white.opacity(0.1),
-                        Color("Primary").opacity(0.2)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .hueRotation(.degrees(scrollOffset / 2)) // Add animated hue rotation
-                .ignoresSafeArea()
+                Color.backgroundPrimary.edgesIgnoringSafeArea(.all)
                 
                 VStack(spacing: 0) {
-                    Text("My Bets")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color("Primary"))
-                        .shadow(color: Color("Primary").opacity(0.3), radius: 2, x: 0, y: 2)
-                        .padding(.top, -60)
-                        .padding(.bottom, 4)
+                    // Tournament Stats Bar
+                    if let tournament = viewModel.currentTournament {
+                        tournamentInfoBar(tournament: tournament)
+                    }
                     
-                    // Filter Picker
-                    Picker("Filter", selection: $selectedFilter) {
-                        ForEach(BetFilter.allCases, id: \.self) { filter in
-                            Text(filter.rawValue).tag(filter)
-                                .foregroundColor(.textPrimary)
+                    // Header with filter
+                    HStack {
+                        Text("My Bets")
+                            .font(.title)
+                            .fontWeight(.bold)
+                        
+                        Spacer()
+                        
+                        // Filter button
+                        Menu {
+                            Button("All Bets", action: { selectedFilter = nil })
+                            
+                            Divider()
+                            
+                            ForEach(BetStatus.allCases, id: \.self) { status in
+                                Button(status.rawValue, action: { selectedFilter = status })
+                            }
+                        } label: {
+                            HStack {
+                                Text(selectedFilter?.rawValue ?? "All Bets")
+                                    .font(.subheadline)
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.backgroundSecondary)
+                            .cornerRadius(8)
                         }
                     }
-                    .pickerStyle(SegmentedPickerStyle())
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
+                    .padding()
                     
-                    // Bets List
-                    ScrollView {
-                        if viewModel.isLoading {
-                            ProgressView()
-                                .padding(.top, 20)
-                                .tint(.primary)
-                        } else if viewModel.bets.isEmpty {
-                            emptyStateView
-                        } else {
+                    if viewModel.isLoading {
+                        Spacer()
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Spacer()
+                    } else if viewModel.bets.isEmpty {
+                        emptyStateView
+                    } else {
+                        // Bets list
+                        ScrollView {
                             LazyVStack(spacing: 16) {
-                                ForEach(viewModel.filteredBets(for: selectedFilter)) { bet in
-                                    BetCard(bet: bet) {
-                                        Task {
-                                            await viewModel.cancelBet(bet)
+                                ForEach(filteredBets) { bet in
+                                    BetCard(
+                                        bet: bet,
+                                        onCancelTapped: {
+                                            BetsManager.shared.cancelBet(bet)
                                         }
-                                    }
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    )
+                                    .padding(.horizontal)
                                 }
                             }
-                            .padding()
+                            .padding(.vertical)
+                        }
+                        .refreshable {
+                            // Refresh data
+                            loadData()
                         }
                     }
-                    .refreshable {
-                        viewModel.loadBets()
-                    }
-                    .modifier(ScrollOffsetModifier(coordinateSpace: "scroll", offset: $scrollOffset))
-                    .coordinateSpace(name: "scroll")
                 }
             }
             .navigationBarHidden(true)
-            .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.errorMessage ?? "An unknown error occurred")
-                    .foregroundColor(.statusError)
-            }
             .onAppear {
-                viewModel.loadBets()
-            }
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToMyBets"))) { _ in
-                viewModel.loadBets()
+                loadData()
             }
         }
     }
     
-    // MARK: - Supporting Views
-    private var emptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "ticket")
-                .font(.system(size: 50))
-                .foregroundColor(.textSecondary)
+    // Filter bets based on selected filter
+    private var filteredBets: [Bet] {
+        if let filter = selectedFilter {
+            return viewModel.bets.filter { $0.status == filter }
+        } else {
+            return viewModel.bets
+        }
+    }
+    
+    // Load data
+    private func loadData() {
+        Task {
+            await viewModel.loadTournament()
+            await viewModel.loadMyBets()
+            await viewModel.loadStats()
+        }
+    }
+    
+    // Tournament info bar
+    private func tournamentInfoBar(tournament: Tournament) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tournament.name)
+                    .font(.headline)
+                
+                Text(tournament.formattedDateRange)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             
-            Text("No Bets Found")
-                .font(.headline)
-                .foregroundColor(.textPrimary)
+            Spacer()
             
-            Text("Your bets will appear here once you place them")
-                .font(.subheadline)
-                .foregroundColor(.textSecondary)
-                .multilineTextAlignment(.center)
+            if let stats = viewModel.stats {
+                HStack(spacing: 16) {
+                    VStack(alignment: .center, spacing: 2) {
+                        Text("\(stats.totalWonBets)")
+                            .font(.headline)
+                            .foregroundColor(.green)
+                        
+                        Text("Wins")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    VStack(alignment: .center, spacing: 2) {
+                        Text(stats.formattedWinPercentage)
+                            .font(.headline)
+                        
+                        Text("Win Rate")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
         }
         .padding()
-        .padding(.top, 40)
+        .background(Color.backgroundSecondary)
+    }
+    
+    // Empty state view
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            
+            Image(systemName: "list.bullet.rectangle")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary.opacity(0.5))
+            
+            Text("No bets yet")
+                .font(.title3)
+                .fontWeight(.medium)
+            
+            Text("Your bets will appear here once you place them.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            
+            Button(action: {
+                BetsManager.shared.loadMyBets()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Refresh")
+                }
+                .font(.headline)
+                .foregroundColor(.white)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 12)
+                .background(Color("Primary"))
+                .cornerRadius(10)
+            }
+            .padding(.top, 10)
+            
+            Spacer()
+        }
     }
 }
 
-// MARK: - BetFilter
-extension MyBetsView {
-    enum BetFilter: String, CaseIterable {
-        case active = "Active"
-        case completed = "Completed"
-        case all = "All"
+// MARK: - MyBetsViewModel
+class MyBetsViewModel: ObservableObject {
+    @Published var bets: [Bet] = []
+    @Published var isLoading = false
+    @Published var error: Error?
+    @Published var currentTournament: Tournament?
+    @Published var stats: TournamentBetStats?
+    
+    private let betsManager = BetsManager.shared
+    
+    @MainActor
+    func loadMyBets() async {
+        isLoading = true
+        
+        // Use BetsManager to load bets
+        betsManager.loadMyBets()
+        
+        // Get bets from manager
+        self.bets = betsManager.myBets
+        self.error = betsManager.error
+        self.isLoading = false
+    }
+    
+    @MainActor
+    func loadTournament() async {
+        await betsManager.loadCurrentTournament()
+        self.currentTournament = betsManager.currentTournament
+    }
+    
+    @MainActor
+    func loadStats() async {
+        if self.currentTournament != nil {
+            do {
+                let stats = try await betsManager.getTournamentStats()
+                self.stats = stats
+            } catch {
+                self.error = error
+            }
+        }
     }
 }
 

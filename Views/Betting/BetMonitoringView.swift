@@ -2,389 +2,415 @@
 //  BetMonitoringView.swift
 //  BettorOdds
 //
-//  Created by Assistant on 2/2/25
-//  Version: 1.0.0
+//  Created by Paul Soni on 4/9/25.
+//  Version: 1.0.0 - Initial implementation
 //
 
 import SwiftUI
-import Charts
 
 struct BetMonitoringView: View {
     @StateObject private var viewModel = BetMonitoringViewModel()
-    @State private var selectedTab = MonitoringTab.overview
-    @State private var showMaintenanceAlert = false
+    @State private var selectedTab = 0
+    @State private var showCancelConfirmation = false
     
-    enum MonitoringTab {
-        case overview
-        case queue
-        case risks
-        case health
-    }
-    
+    // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
-            // Header with System Status
-            systemStatusHeader
-            
-            // Tab Selection
-            tabPicker
-            
-            // Main Content
-            ScrollView {
-                VStack(spacing: 20) {
-                    switch selectedTab {
-                    case .overview:
-                        overviewSection
-                    case .queue:
-                        queueSection
-                    case .risks:
-                        riskSection
-                    case .health:
-                        healthSection
+            // Title and refresh button
+            HStack {
+                Text("Bet Monitoring")
+                    .font(.title)
+                    .fontWeight(.bold)
+                
+                Spacer()
+                
+                Button(action: {
+                    Task {
+                        await viewModel.refreshData()
                     }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 18))
+                        .foregroundColor(.primary)
+                        .padding(8)
+                        .background(Color.backgroundSecondary)
+                        .cornerRadius(8)
                 }
-                .padding()
             }
-            .refreshable {
-                await viewModel.refreshData()
+            .padding(.horizontal)
+            .padding(.top)
+            
+            // System status indicator
+            SystemStatusView(systemHealth: viewModel.systemHealth)
+                .padding()
+            
+            // Tabs
+            Picker("View", selection: $selectedTab) {
+                Text("Stats").tag(0)
+                Text("Queue").tag(1)
+                Text("Alerts").tag(2)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
+            
+            // Tab content
+            TabView(selection: $selectedTab) {
+                StatsView(stats: viewModel.stats)
+                    .tag(0)
+                
+                QueueView(
+                    queueItems: viewModel.queueItems,
+                    onTriggerMatchingTapped: { betId in
+                        Task {
+                            try await viewModel.triggerMatching(for: betId)
+                        }
+                    }
+                )
+                .tag(1)
+                
+                AlertsView(alerts: viewModel.riskAlerts)
+                    .tag(2)
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            
+            // Bottom maintenance actions
+            VStack {
+                Divider()
+                Button(action: {
+                    showCancelConfirmation = true
+                }) {
+                    HStack {
+                        Image(systemName: "xmark.circle.fill")
+                        Text("Cancel All Pending Bets")
+                    }
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.statusError)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
             }
         }
-        .alert("Maintenance Mode", isPresented: $showMaintenanceAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Confirm", role: .destructive) {
+        .alert("Cancel All Pending Bets", isPresented: $showCancelConfirmation) {
+            Button("Keep Bets", role: .cancel) { }
+            Button("Cancel All", role: .destructive) {
                 Task {
-                    try? await viewModel.cancelAllPendingBets()
+                    try await viewModel.cancelAllPendingBets()
                 }
             }
         } message: {
-            Text("This will cancel all pending bets and pause new matches. Are you sure?")
+            Text("This will cancel all pending bets in the system. This action cannot be undone.")
+        }
+        .onAppear {
+            Task {
+                await viewModel.refreshData()
+            }
         }
     }
+}
+
+// MARK: - System Status View
+struct SystemStatusView: View {
+    let systemHealth: SystemHealth
     
-    // MARK: - Header
-    private var systemStatusHeader: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading) {
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("System Status")
                     .font(.headline)
-                Text(viewModel.systemHealth.status.rawValue)
-                    .foregroundColor(Color(viewModel.systemHealth.status.color))
+                
+                HStack {
+                    Circle()
+                        .fill(Color(systemHealth.status.color))
+                        .frame(width: 10, height: 10)
+                    
+                    Text(systemHealth.status.rawValue)
+                        .font(.subheadline)
+                        .foregroundColor(Color(systemHealth.status.color))
+                }
             }
             
             Spacer()
             
-            Button(action: {
-                showMaintenanceAlert = true
-            }) {
-                Label("Maintenance", systemImage: "wrench.fill")
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("Last Updated")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text(systemHealth.lastUpdate.formatted(date: .omitted, time: .shortened))
+                    .font(.caption)
             }
-            .buttonStyle(.bordered)
-            
-            Button(action: {
-                Task {
-                    await viewModel.refreshData()
-                }
-            }) {
-                Label("Refresh", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
+        .background(Color.backgroundSecondary)
+        .cornerRadius(10)
     }
+}
+
+// MARK: - Stats View
+// MARK: - Stats View
+struct StatsView: View {
+    let stats: BetMonitoringStats
     
-    // MARK: - Tab Picker
-    private var tabPicker: some View {
-        Picker("View", selection: $selectedTab) {
-            Text("Overview").tag(MonitoringTab.overview)
-            Text("Queue").tag(MonitoringTab.queue)
-            Text("Risks").tag(MonitoringTab.risks)
-            Text("Health").tag(MonitoringTab.health)
-        }
-        .pickerStyle(.segmented)
-        .padding()
-    }
-    
-    // MARK: - Overview Section
-    private var overviewSection: some View {
-        VStack(spacing: 20) {
-            // Stats Grid
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 16) {
-                StatCard(
-                    title: "Pending Bets",
-                    value: "\(viewModel.stats.pendingBetsCount)",
-                    trend: nil
-                )
-                
-                StatCard(
-                    title: "Match Success Rate",
-                    value: "\(Int(viewModel.stats.matchSuccessRate))%",
-                    trend: .up
-                )
-                
-                StatCard(
-                    title: "Hourly Volume",
-                    value: "$\(Int(viewModel.stats.hourlyVolume))",
-                    trend: viewModel.stats.volumeChange24h > 0 ? .up : .down
-                )
-                
-                StatCard(
-                    title: "Avg Match Time",
-                    value: "\(Int(viewModel.stats.averageMatchTime))s",
-                    trend: nil
-                )
-            }
-            
-            // Recent Activity Chart
-            VStack(alignment: .leading, spacing: 8) {
-                Text("24h Volume")
-                    .font(.headline)
-                
-                Chart {
-                    // Sample data - replace with real data
-                    ForEach(0..<24, id: \.self) { hour in
-                        LineMark(
-                            x: .value("Hour", hour),
-                            y: .value("Volume", Double.random(in: 1000...5000))
-                        )
-                    }
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Volume metrics
+                HStack {
+                    MonitoringStatCard(
+                        title: "Hourly Volume",
+                        value: stats.formattedHourlyVolume,
+                        icon: "chart.bar.fill",
+                        color: .blue
+                    )
+                    
+                    MonitoringStatCard(
+                        title: "24h Change",
+                        value: stats.formattedVolumeChange24h,
+                        icon: stats.volumeChangeIsPositive ? "arrow.up.right" : "arrow.down.right",
+                        color: stats.volumeChangeIsPositive ? .green : .red
+                    )
                 }
-                .frame(height: 200)
-            }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
-        }
-    }
-    
-    // MARK: - Queue Section
-    private var queueSection: some View {
-        VStack(spacing: 16) {
-            ForEach(viewModel.queueItems) { item in
-                QueueItemView(item: item) {
-                    Task {
-                        try? await viewModel.triggerMatching(for: item.bet.id)
-                    }
+                
+                // Performance metrics
+                HStack {
+                    MonitoringStatCard(
+                        title: "Match Rate",
+                        value: stats.formattedMatchSuccessRate,
+                        icon: "checkmark.circle.fill",
+                        color: .green
+                    )
+                    
+                    MonitoringStatCard(
+                        title: "Avg Match Time",
+                        value: stats.formattedAverageMatchTime,
+                        icon: "timer",
+                        color: .orange
+                    )
                 }
-            }
-        }
-    }
-    
-    // MARK: - Risk Section
-    private var riskSection: some View {
-        VStack(spacing: 16) {
-            ForEach(viewModel.riskAlerts) { alert in
-                RiskAlertView(alert: alert)
-            }
-        }
-    }
-    
-    // MARK: - Health Section
-    private var healthSection: some View {
-        VStack(spacing: 20) {
-            // System Metrics
-            VStack(alignment: .leading, spacing: 8) {
-                Text("System Metrics")
-                    .font(.headline)
                 
-                MetricRow(
-                    title: "Matching Latency",
-                    value: String(format: "%.2fs", viewModel.systemHealth.matchingLatency)
-                )
+                // Queue metrics
+                HStack {
+                    MonitoringStatCard(
+                        title: "Pending Bets",
+                        value: "\(stats.pendingBetsCount)",
+                        icon: "clock.fill",
+                        color: .purple
+                    )
+                    
+                    MonitoringStatCard(
+                        title: "Avg Queue Depth",
+                        value: "\(stats.averageQueueDepth)",
+                        icon: "list.bullet",
+                        color: .blue
+                    )
+                }
                 
-                MetricRow(
-                    title: "Queue Processing",
-                    value: "\(Int(viewModel.systemHealth.queueProcessingRate))%"
-                )
-                
-                MetricRow(
-                    title: "Error Rate",
-                    value: "\(viewModel.systemHealth.errorRate)%"
-                )
-            }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
-            
-            // Last 24h Error Log
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Error Log")
-                    .font(.headline)
-                
-                // Sample error log - replace with real data
-                ForEach(0..<5) { _ in
-                    ErrorLogRow(
-                        timestamp: Date(),
-                        message: "Sample error message"
+                // Risk metrics
+                HStack {
+                    MonitoringStatCard(
+                        title: "Suspicious Activity",
+                        value: "\(stats.suspiciousActivityCount)",
+                        icon: "exclamationmark.triangle.fill",
+                        color: .red
+                    )
+                    
+                    MonitoringStatCard(
+                        title: "Rapid Cancellations",
+                        value: "\(stats.rapidCancellationCount)",
+                        icon: "xmark.circle.fill",
+                        color: .orange
                     )
                 }
             }
             .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(12)
+        }
+    }
+}
+
+// MARK: - Queue View
+struct QueueView: View {
+    let queueItems: [BetQueueItem]
+    let onTriggerMatchingTapped: (String) -> Void
+    
+    var body: some View {
+        if queueItems.isEmpty {
+            VStack {
+                Spacer()
+                Text("No items in queue")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        } else {
+            List {
+                ForEach(queueItems) { item in
+                    QueueItemRow(
+                        item: item,
+                        onTriggerMatchingTapped: onTriggerMatchingTapped
+                    )
+                }
+            }
+            .listStyle(PlainListStyle())
+        }
+    }
+}
+
+// MARK: - Alerts View
+struct AlertsView: View {
+    let alerts: [RiskAlert]
+    
+    var body: some View {
+        if alerts.isEmpty {
+            VStack {
+                Spacer()
+                Text("No alerts detected")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+        } else {
+            List {
+                ForEach(alerts) { alert in
+                    RiskAlertRow(alert: alert)
+                }
+            }
+            .listStyle(PlainListStyle())
         }
     }
 }
 
 // MARK: - Supporting Views
-
-struct StatCard: View {
-    let title: String
-    let value: String
-    let trend: Trend?
-    
-    enum Trend {
-        case up, down
-        
-        var color: Color {
-            switch self {
-            case .up: return .green
-            case .down: return .red
-            }
-        }
-        
-        var icon: String {
-            switch self {
-            case .up: return "arrow.up"
-            case .down: return "arrow.down"
-            }
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(value)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                if let trend = trend {
-                    Image(systemName: trend.icon)
-                        .foregroundColor(trend.color)
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct QueueItemView: View {
+struct QueueItemRow: View {
     let item: BetQueueItem
-    let onMatch: () -> Void
+    let onTriggerMatchingTapped: (String) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(item.bet.team)
-                    .font(.headline)
+                    .font(.system(size: 16, weight: .medium))
+                
                 Spacer()
+                
                 Text("\(item.bet.amount) coins")
-                    .fontWeight(.semibold)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
             }
             
             HStack {
-                Label(
-                    "\(Int(item.timeInQueue / 60))m in queue",
-                    systemImage: "clock"
-                )
+                Label("In queue: \(item.formattedTimeInQueue)", systemImage: "clock")
+                    .font(.system(size: 14))
+                    .foregroundColor(item.isPotentiallyStuck ? .orange : .secondary)
                 
                 Spacer()
                 
-                Label(
-                    "\(item.potentialMatches) potential",
-                    systemImage: "person.2"
-                )
+                Label("\(item.potentialMatches) potential matches", systemImage: "person.2")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
             }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
             
-            Button("Force Match", action: onMatch)
-                .buttonStyle(.bordered)
+            HStack {
+                Text("Est. match time: \(item.formattedEstimatedMatchTime)")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button(action: {
+                    onTriggerMatchingTapped(item.bet.id)
+                }) {
+                    Text("Force Match")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(4)
+                }
+            }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
+        .padding(.vertical, 8)
     }
 }
 
-struct RiskAlertView: View {
+struct RiskAlertRow: View {
     let alert: RiskAlert
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Circle()
-                    .fill(Color(alert.severity.color))
-                    .frame(width: 8, height: 8)
+                Image(systemName: alert.type.icon)
+                    .foregroundColor(Color(alert.severity.color))
                 
                 Text(alert.type.rawValue)
                     .font(.headline)
                 
                 Spacer()
                 
-                Text(alert.timestamp, style: .relative)
-                    .font(.subheadline)
+                Text(alert.severity.rawValue)
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Color(alert.severity.color).opacity(0.2))
+                    .foregroundColor(Color(alert.severity.color))
+                    .cornerRadius(4)
+            }
+            
+            Text("User ID: \(alert.userId)")
+                .font(.system(size: 14))
+                .foregroundColor(.secondary)
+            
+            Text(alert.details)
+                .font(.system(size: 14))
+            
+            Text(alert.timestamp.formatted(date: .abbreviated, time: .shortened))
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
+    }
+    
+    private func hapticFeedback() {
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+    }
+}
+// MARK: - Preview
+#Preview {
+    BetMonitoringView()
+}
+
+// Monitoring-specific stat card
+struct MonitoringStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                
+                Text(title)
+                    .font(.system(size: 14))
                     .foregroundColor(.secondary)
             }
             
-            Text(alert.details)
-                .font(.subheadline)
+            Text(value)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.primary)
             
-            Text("User: \(alert.userId)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Spacer()
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
-    }
-}
-
-struct MetricRow: View {
-    let title: String
-    let value: String
-    
-    var body: some View {
-        HStack {
-            Text(title)
-                .foregroundColor(.secondary)
-            Spacer()
-            Text(value)
-                .fontWeight(.medium)
-        }
-    }
-}
-
-struct ErrorLogRow: View {
-    let timestamp: Date
-    let message: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(timestamp, style: .time)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            Text(message)
-                .font(.subheadline)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Preview Provider
-struct BetMonitoringView_Previews: PreviewProvider {
-    static var previews: some View {
-        BetMonitoringView()
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .background(Color.backgroundSecondary)
+        .cornerRadius(10)
     }
 }

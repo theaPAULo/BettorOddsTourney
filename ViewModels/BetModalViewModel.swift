@@ -2,25 +2,31 @@
 //  BetModalViewModel.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 1/27/25.
-//  Version: 1.0.0
+//  Updated by Paul Soni on 4/9/25
+//  Version: 3.0.0 - Modified for tournament system
 //
 
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 @MainActor
 class BetModalViewModel: ObservableObject {
     // MARK: - Published Properties
-    @Published var selectedCoinType: CoinType = .yellow
     @Published var betAmount: String = ""
     @Published var isProcessing = false
     @Published var errorMessage: String?
+    @Published var coinsRemaining: Int = 0
+    @Published var currentTournament: Tournament?
+    @Published var leaderboardEntry: LeaderboardEntry?
+    @Published var selectedBetType: BetType = .spread
     
     // MARK: - Private Properties
     private let game: Game
     private let user: User
-    private let betRepository: BetRepository
-    private let userRepository: UserRepository
+    private let db = FirebaseConfig.shared.db
+    private var betRepository: BetRepository?
+    private let tournamentService = TournamentService.shared
     
     // MARK: - Computed Properties
     var canPlaceBet: Bool {
@@ -29,27 +35,36 @@ class BetModalViewModel: ObservableObject {
         }
             
         // Check if game is locked
-        if game.isLocked {
+        if game.isLocked || game.shouldBeLocked {
+            return false
+        }
+        
+        // Only allow bet if there's an active tournament and user is subscribed
+        if currentTournament == nil || user.subscriptionStatus != .active {
             return false
         }
             
-        if selectedCoinType == .green {
-            // Check daily limit for green coins
-            return amount <= remainingDailyLimit && amount <= user.greenCoins
-        }
-            
-        // For yellow coins, just check if user has enough
-        return amount <= user.yellowCoins
-    }
-    
-    var remainingDailyLimit: Int {
-        return user.remainingDailyGreenCoins
+        // Check if user has enough tournament coins
+        return amount <= coinsRemaining
     }
     
     var potentialWinnings: String {
-        guard let amount = Double(betAmount) else { return "0" }
-        // Even odds: Bet amount equals winning amount
-        return String(format: "%.0f", amount)
+        guard let amount = Int(betAmount) else { return "0" }
+        
+        // Different calculations based on bet type
+        switch selectedBetType {
+        case .spread:
+            return String(format: "%d", amount) // Even money
+        case .moneyline:
+            return String(format: "%d", Int(Double(amount) * 0.9))
+        case .overUnder:
+            return String(format: "%d", amount) // Even money
+        }
+    }
+    
+    // Tournament coin type color
+    var coinColor: Color {
+        return Color("Primary") // Use primary theme color for tournament coins
     }
     
     // MARK: - Initialization
@@ -57,16 +72,77 @@ class BetModalViewModel: ObservableObject {
         self.game = game
         self.user = user
         
-        // Initialize repositories
+        // Initialize repository
         do {
             self.betRepository = try BetRepository()
-            self.userRepository = try UserRepository()
         } catch {
-            fatalError("Failed to initialize repositories: \(error)")
+            print("Failed to initialize BetRepository: \(error)")
+        }
+        
+        // Load tournament data on init
+        Task {
+            await loadTournamentData()
         }
     }
     
     // MARK: - Public Methods
+    
+    /// Loads tournament data and user's leaderboard entry
+    func loadTournamentData() async {
+        isProcessing = true
+        
+        do {
+            // 1. Clear any existing error
+            errorMessage = nil
+            
+            // 2. Check for active tournament
+            if let tournamentId = user.currentTournamentId {
+                let tournament = try await tournamentService.fetchTournament(tournamentId: tournamentId)
+                
+                // Only proceed if tournament is active
+                if tournament.status == .active {
+                    // 3. Fetch user's leaderboard entry
+                    if let entry = try await tournamentService.fetchUserLeaderboardEntry(
+                        userId: user.id,
+                        tournamentId: tournamentId
+                    ) {
+                        await MainActor.run {
+                            self.currentTournament = tournament
+                            self.leaderboardEntry = entry
+                            self.coinsRemaining = entry.coinsRemaining
+                        }
+                    } else {
+                        errorMessage = "Unable to find your tournament entry"
+                    }
+                } else {
+                    errorMessage = "No active tournament found"
+                }
+            } else {
+                // Try to find any active tournament
+                if let activeTournament = try await tournamentService.fetchActiveTournament() {
+                    // Check if user has active subscription
+                    if user.subscriptionStatus == .active {
+                        // Register for tournament
+                        try await tournamentService.registerForTournament(
+                            userId: user.id,
+                            tournamentId: activeTournament.id
+                        )
+                        
+                        // Refresh data after registration
+                        await loadTournamentData()
+                    } else {
+                        errorMessage = "Subscription required to join tournament"
+                    }
+                } else {
+                    errorMessage = "No active tournament found"
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        
+        isProcessing = false
+    }
     
     /// Places a bet
     /// - Parameters:
@@ -79,18 +155,19 @@ class BetModalViewModel: ObservableObject {
             return false
         }
         
-        // Additional validation for green coins
-        if selectedCoinType == .green {
-            // Check daily limit
-            if amount > remainingDailyLimit {
-                errorMessage = "This bet would exceed your daily limit"
-                return false
-            }
+        // Check tournament validity
+        guard let tournament = currentTournament, tournament.status == .active else {
+            errorMessage = "No active tournament available"
+            return false
+        }
+        
+        // Check if coins are available
+        if amount > coinsRemaining {
+            errorMessage = "Insufficient tournament coins"
+            return false
         }
         
         isProcessing = true
-        // Place the defer block here, before the do-catch
-        defer { isProcessing = false }
         errorMessage = nil
         
         do {
@@ -98,46 +175,34 @@ class BetModalViewModel: ObservableObject {
             let bet = Bet(
                 userId: user.id,
                 gameId: game.id,
-                coinType: selectedCoinType,
+                tournamentId: tournament.id,
                 amount: amount,
                 initialSpread: isHomeTeam ? game.spread : -game.spread,
                 team: team,
-                isHomeTeam: isHomeTeam
+                isHomeTeam: isHomeTeam,
+                betType: selectedBetType
             )
             
             // Place bet using repository
-            try await betRepository.save(bet)
+            try await betRepository?.save(bet)
             
-            // Update user's daily limit for green coins
-            if selectedCoinType == .green {
-                try await userRepository.updateDailyGreenCoinsUsage(
-                    userId: user.id,
-                    amount: amount
-                )
+            // Update local coins remaining counter
+            coinsRemaining -= amount
+            
+            // Update leaderboard entry if available
+            if var updatedEntry = leaderboardEntry {
+                updatedEntry.coinsRemaining -= amount
+                updatedEntry.coinsBet += amount
+                updatedEntry.betsPlaced += 1
+                leaderboardEntry = updatedEntry
             }
             
+            isProcessing = false
             return true
         } catch {
+            isProcessing = false
             errorMessage = error.localizedDescription
             return false
         }
-    }
-    
-    // MARK: - Helper Methods
-    
-    /// Validates bet amount
-    private func validateBetAmount(_ amount: Int) -> Bool {
-        // Minimum bet amount
-        guard amount >= 1 else { return false }
-        
-        // Maximum bet amount (could be moved to settings)
-        guard amount <= 100 else { return false }
-        
-        // For green coins, check daily limit
-        if selectedCoinType == .green {
-            return amount <= remainingDailyLimit
-        }
-        
-        return true
     }
 }
