@@ -218,7 +218,7 @@ class AuthenticationService {
                 
                 let isNewUser = snapshot?.exists == false
                 
-                // Replace the part where a new user is created with this:
+                // In handleFirebaseSignIn method, modify the part where a new user is created:
                 if isNewUser {
                     // Create new user for Firestore
                     var user = User(
@@ -245,8 +245,15 @@ class AuthenticationService {
                         let userData = user.toDictionary()
                         try self.db.collection("users").document(user.id).setData(userData)
                         
-                        // Initialize user's first batch of coins
-                        try await UserService.shared.resetWeeklyCoins(for: user.id)
+                        // Launch async task from synchronous context
+                        Task {
+                            do {
+                                try await UserService.shared.resetWeeklyCoins(for: user.id)
+                                print("✅ Weekly coins initialized for new user")
+                            } catch {
+                                print("❌ Failed to initialize weekly coins: \(error)")
+                            }
+                        }
                         
                         completion(.success(user))
                     } catch {
@@ -277,26 +284,13 @@ class AuthenticationService {
     
     /// Processes login streak for returning users
     private func processLoginStreak(for user: User) {
-        guard let lastLoginDate = user.lastLoginDate else { return }
-        
-        let calendar = Calendar.current
-        let now = Date()
-        
-        // Check if the last login was yesterday
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now) {
-            let lastLoginDay = calendar.startOfDay(for: lastLoginDate)
-            let yesterdayDay = calendar.startOfDay(for: yesterday)
-            
-            if calendar.isDate(lastLoginDay, inSameDayAs: yesterdayDay) {
-                // Last login was yesterday, increment streak
-                self.db.collection("users").document(user.id).updateData([
-                    "loginStreak": user.loginStreak + 1
-                ])
-            } else if !calendar.isDateInToday(lastLoginDay) {
-                // Last login was not yesterday and not today, reset streak
-                self.db.collection("users").document(user.id).updateData([
-                    "loginStreak": 1
-                ])
+        // Launch async task from synchronous context
+        Task {
+            do {
+                try await UserService.shared.updateLoginStreak(for: user)
+                print("✅ Login streak updated for user \(user.id)")
+            } catch {
+                print("❌ Failed to update login streak: \(error.localizedDescription)")
             }
         }
     }
