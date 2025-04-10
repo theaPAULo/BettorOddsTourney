@@ -22,6 +22,9 @@
 		E433BEEC2D471C11002FFF2F /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E433BEEB2D471C11002FFF2F /* FirebaseFirestore */; };
 		E44A7DAC2D4BDEE6006DC12C /* FirebaseFirestoreCombine-Community in Frameworks */ = {isa = PBXBuildFile; productRef = E44A7DAB2D4BDEE6006DC12C /* FirebaseFirestoreCombine-Community */; };
 		E460932C2D5110E600917F60 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E46093122D50868600917F60 /* XCTest.framework */; platformFilter = ios; };
+		E4C30B8B2DA736CC006FF838 /* BettorOddsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C30B872DA736CC006FF838 /* BettorOddsApp.swift */; };
+		E4C30B8C2DA736CC006FF838 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C30B882DA736CC006FF838 /* ContentView.swift */; };
+		E4C30B8D2DA736CC006FF838 /* LaunchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C30B8A2DA736CC006FF838 /* LaunchScreen.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,9 +40,12 @@
 /* Begin PBXFileReference section */
 		E433BECB2D47160D002FFF2F /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		E46093122D50868600917F60 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
-		E46093182D51084A00917F60 /* BettorOddsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BettorOddsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E46093182D51084A00917F60 /* BettorOddsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; name = BettorOddsTests.xctest; path = "/Users/paulsoni/Desktop/Development/XCode/BettorOddsv2/BettorOdds/build/Debug-iphoneos/BettorOdds.app/PlugIns/BettorOddsTests.xctest"; sourceTree = "<absolute>"; };
 		E46093282D510EC400917F60 /* BettorOdds.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = BettorOdds.xcodeproj; sourceTree = "<group>"; };
 		E494E2AF2D4704330020327A /* BettorOdds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BettorOdds.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E4C30B872DA736CC006FF838 /* BettorOddsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BettorOddsApp.swift; sourceTree = "<group>"; };
+		E4C30B882DA736CC006FF838 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E4C30B8A2DA736CC006FF838 /* LaunchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreen.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -78,16 +84,6 @@
 		E43BC6662D4939A400F7AE5C /* Repositories */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Repositories;
-			sourceTree = "<group>";
-		};
-		E43BC67C2D493AFE00F7AE5C /* Components */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Components;
-			sourceTree = "<group>";
-		};
-		E43BC6822D493B3900F7AE5C /* Extensions */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Extensions;
 			sourceTree = "<group>";
 		};
 		E494E2B12D4704330020327A /* BettorOdds */ = {
@@ -185,20 +181,21 @@
 		E494E2A62D4704330020327A = {
 			isa = PBXGroup;
 			children = (
-				E43BC6822D493B3900F7AE5C /* Extensions */,
-				E43BC6662D4939A400F7AE5C /* Repositories */,
-				E43BC6602D49392900F7AE5C /* Documentation */,
-				E494E2D92D47076B0020327A /* Views */,
-				E494E2D52D4707290020327A /* Utilities */,
-				E494E2D42D4707200020327A /* Services */,
-				E494E2D32D4707130020327A /* ViewModels */,
 				E494E2D22D4706F60020327A /* Models */,
+				E494E2D92D47076B0020327A /* Views */,
+				E494E2D32D4707130020327A /* ViewModels */,
+				E43BC6662D4939A400F7AE5C /* Repositories */,
+				E494E2D42D4707200020327A /* Services */,
+				E43BC6602D49392900F7AE5C /* Documentation */,
+				E494E2D52D4707290020327A /* Utilities */,
 				E494E2B12D4704330020327A /* BettorOdds */,
 				E494E2B02D4704330020327A /* Products */,
 				39D3342290FACD23593D2814 /* Pods */,
 				E433BECB2D47160D002FFF2F /* GoogleService-Info.plist */,
-				E43BC67C2D493AFE00F7AE5C /* Components */,
 				E46093112D50868500917F60 /* Frameworks */,
+				E4C30B872DA736CC006FF838 /* BettorOddsApp.swift */,
+				E4C30B882DA736CC006FF838 /* ContentView.swift */,
+				E4C30B8A2DA736CC006FF838 /* LaunchScreen.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -206,7 +203,6 @@
 			isa = PBXGroup;
 			children = (
 				E494E2AF2D4704330020327A /* BettorOdds.app */,
-				E46093182D51084A00917F60 /* BettorOddsTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -249,8 +245,6 @@
 			fileSystemSynchronizedGroups = (
 				E43BC6602D49392900F7AE5C /* Documentation */,
 				E43BC6662D4939A400F7AE5C /* Repositories */,
-				E43BC67C2D493AFE00F7AE5C /* Components */,
-				E43BC6822D493B3900F7AE5C /* Extensions */,
 				E494E2B12D4704330020327A /* BettorOdds */,
 				E494E2D22D4706F60020327A /* Models */,
 				E494E2D32D4707130020327A /* ViewModels */,
@@ -341,6 +335,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E4C30B8B2DA736CC006FF838 /* BettorOddsApp.swift in Sources */,
+				E4C30B8C2DA736CC006FF838 /* ContentView.swift in Sources */,
+				E4C30B8D2DA736CC006FF838 /* LaunchScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
