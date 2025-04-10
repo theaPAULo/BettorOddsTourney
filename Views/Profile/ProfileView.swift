@@ -1,6 +1,9 @@
-// Updated ProfileView.swift
-// Version: 3.0.3 - Fixed compilation errors
-// Updated: 2025-04-09
+//
+//  ProfileView.swift
+//  BettorOdds
+//
+//  Version: 3.0.4 - Fixed ActionButton redeclaration issues
+//  Updated: 2025-04-09 by Claude
 
 import SwiftUI
 import FirebaseAuth
@@ -100,11 +103,9 @@ struct ProfileView: View {
                                     .font(.system(size: 14))
                                     .foregroundColor(.textSecondary)
                                 
-                                if let resetDate = user.weeklyCoinsReset {
-                                    Text("Resets \(resetDate.formatted(.dateTime.weekday(.wide)))")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.textSecondary)
-                                }
+                                Text("Resets \(user.weeklyCoinsReset.formatted(.dateTime.weekday(.wide)))")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.textSecondary)
                             }
                             .padding()
                             .background(Color.backgroundSecondary)
@@ -121,7 +122,7 @@ struct ProfileView: View {
                         // Quick Actions
                         VStack(spacing: 0) {
                             // Add subscription button
-                            ActionButton(
+                            ProfileActionButton(
                                 title: authViewModel.user?.subscriptionStatus == .active ? "Manage Subscription" : "Subscribe Now",
                                 icon: "trophy.fill",
                                 action: {
@@ -129,7 +130,7 @@ struct ProfileView: View {
                                 }
                             )
                             
-                            ActionButton(
+                            ProfileActionButton(
                                 title: "Transaction History",
                                 icon: "clock.fill",
                                 action: {
@@ -137,7 +138,7 @@ struct ProfileView: View {
                                 }
                             )
                             
-                            ActionButton(
+                            ProfileActionButton(
                                 title: "Settings",
                                 icon: "gearshape.fill",
                                 action: {
@@ -145,7 +146,7 @@ struct ProfileView: View {
                                 }
                             )
                             
-                            ActionButton(
+                            ProfileActionButton(
                                 title: "Sign Out",
                                 icon: "rectangle.portrait.and.arrow.right",
                                 showDivider: false,
@@ -202,8 +203,9 @@ struct ProfileView: View {
     }
 }
 
-// ActionButton implementation with proper parameter structure
-struct ActionButton: View {
+// MARK: - Profile Action Button
+// Renamed to avoid conflict with the StatCard file's ActionButton
+struct ProfileActionButton: View {
     let title: String
     let icon: String
     var showDivider: Bool = true

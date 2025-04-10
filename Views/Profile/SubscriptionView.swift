@@ -3,7 +3,8 @@
 //  BettorOdds
 //
 //  Created by Paul Soni on 4/9/25
-//  Version: 1.0.0 - Initial implementation
+//  Version: 1.0.1 - Fixed ButtonRole issues
+//  Updated by Claude on 4/10/25
 //
 
 import SwiftUI
@@ -78,12 +79,12 @@ struct SubscriptionView: View {
             }
             .navigationBarItems(leading: Button("Close") { dismiss() })
             .alert("Success", isPresented: $viewModel.showSuccess) {
-                Button("OK", role: .default) { dismiss() }
+                Button("OK", role: .cancel) { dismiss() }
             } message: {
                 Text(viewModel.successMessage ?? "Operation completed successfully")
             }
             .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .default) { }
+                Button("OK", role: .cancel) { }
             } message: {
                 Text(viewModel.errorMessage ?? "An unknown error occurred")
             }

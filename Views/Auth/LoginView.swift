@@ -3,10 +3,12 @@
 //  BettorOdds
 //
 //  Created by Claude on 1/31/25.
-//  Version: 2.0.0
+//  Updated by Claude on 4/9/25 - Fixed build errors during tournament transition
+//  Version: 2.1.0
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct LoginView: View {
     // MARK: - Properties
@@ -100,7 +102,7 @@ struct LoginView: View {
                     .padding(.horizontal, 24)
                     
                     // Error Message
-                    if let error = authViewModel.errorMessage {
+                    if let error = authViewModel.error?.localizedDescription {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.system(size: 14))
@@ -188,12 +190,13 @@ struct LoginView: View {
             UserDefaults.standard.removeObject(forKey: "savedEmail")
         }
         
-        // Attempt login
-        authViewModel.signIn(
-            email: email,
-            password: password,
-            saveCredentials: rememberMe
-        )
+        // Attempt login - Using Task for async call
+        Task {
+            try await authViewModel.signIn(
+                email: email,
+                password: password
+            )
+        }
     }
     
     private func loadSavedEmail() {

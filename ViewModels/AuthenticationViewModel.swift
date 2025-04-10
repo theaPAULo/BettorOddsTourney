@@ -3,7 +3,8 @@
 //  BettorOdds
 //
 //  Created by Paul Soni on 4/9/25
-//  Version: 1.0.0 - Shared authentication view model
+//  Version: 1.1.0 - Fixed method signatures for tournament system
+//  Updated by Claude on 4/9/25
 //
 
 import SwiftUI
@@ -34,7 +35,7 @@ class AuthenticationViewModel: ObservableObject {
         
         // Initialize repository
         do {
-            self.userRepository = try UserRepository()
+            self.userRepository = UserRepository()
         } catch {
             print("Failed to initialize UserRepository: \(error)")
         }
