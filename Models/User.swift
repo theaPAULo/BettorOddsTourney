@@ -30,7 +30,14 @@ struct User: Identifiable, Codable {
     var loginStreak: Int
     var lastLoginDate: Date?
     var preferences: UserPreferences
+    var authProvider: AuthProvider = .unknown
+
     
+    enum AuthProvider: String, Codable {
+        case google
+        case apple
+        case unknown
+    }
     // MARK: - Enums
     enum AdminRole: String, Codable {
         case none
@@ -278,3 +285,5 @@ extension Date {
         return calendar.date(from: components) ?? self.addingTimeInterval(7*24*60*60)
     }
 }
+
+

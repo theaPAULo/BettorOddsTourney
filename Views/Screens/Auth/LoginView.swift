@@ -1,230 +1,170 @@
-//
-//  LoginView.swift
-//  BettorOdds
-//
-//  Created by Claude on 1/31/25.
-//  Updated by Claude on 4/9/25 - Fixed build errors during tournament transition
-//  Version: 2.1.0
-//
+// Views/Screens/Auth/LoginView.swift
 
 import SwiftUI
-import FirebaseAuth
+import AuthenticationServices
 
 struct LoginView: View {
     // MARK: - Properties
     @EnvironmentObject var authViewModel: AuthenticationViewModel
-    @AppStorage("rememberMe") private var rememberMe = false
-    
-    @State private var email = ""
-    @State private var password = ""
-    @State private var showPassword = false
-    @State private var showingForgotPassword = false
-    @State private var emailError: String?
     @State private var isKeyboardVisible = false
-    @State private var showPhoneVerification = false
-
     
     // MARK: - Body
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Logo and Title
-                    VStack(spacing: 8) {
-                        Text("BettorOdds")
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.primary)
-                        
-                        Text("Sign in to continue")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.top, 60)
-                    
-                    // Login Form
-                    VStack(spacing: 16) {
-                        // Email Field
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Email")
-                                .font(.caption)
+            ZStack {
+                // Background color
+                Color.backgroundPrimary.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Logo and Title
+                        VStack(spacing: 8) {
+                            Image("AppLogo") // Replace with your app logo
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 120, height: 120)
+                                .padding(.top, 60)
+                            
+                            Text("BettorOdds")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.primary)
+                            
+                            Text("Join weekly tournaments & win real prizes")
+                                .font(.system(size: 16))
                                 .foregroundColor(.secondary)
-                            
-                            TextField("Enter your email", text: $email)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .textContentType(.username)
-                                .keyboardType(.emailAddress)
-                                .autocapitalization(.none)
-                                .autocorrectionDisabled()
-                                .onChange(of: email) { _ in
-                                    emailError = EmailValidator.validationMessage(for: email)
-                                }
-                            
-                            if let error = emailError {
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                            }
+                                .multilineTextAlignment(.center)
                         }
+                        .padding(.bottom, 40)
                         
-                        // Password Field
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Password")
-                                .font(.caption)
+                        // Spacer
+                        Spacer(minLength: 40)
+                        
+                        // Sign-in options
+                        VStack(spacing: 20) {
+                            // Sign in with Google
+                            Button(action: {
+                                authViewModel.signInWithGoogle()
+                            }) {
+                                HStack {
+                                    Image("GoogleIcon") // Add this to your asset catalog
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 24, height: 24)
+                                    
+                                    Text("Continue with Google")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(.systemBackground))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            
+                            // Sign in with Apple
+                            SignInWithAppleButton(
+                                .signIn,
+                                onRequest: { request in
+                                    // Request setup handled by our prepareAppleSignIn method
+                                    let request = authViewModel.prepareAppleSignIn()
+                                },
+                                onCompletion: { result in
+                                    switch result {
+                                    case .success(let authorization):
+                                        authViewModel.handleAppleSignInCompletion(.success(authorization))
+                                    case .failure(let error):
+                                        authViewModel.handleAppleSignInCompletion(.failure(error))
+                                    }
+                                }
+                            )
+                            .frame(height: 50)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        Spacer()
+                        
+                        // Terms & Privacy
+                        VStack(spacing: 4) {
+                            Text("By continuing, you agree to our")
+                                .font(.footnote)
                                 .foregroundColor(.secondary)
                             
-                            HStack {
-                                if showPassword {
-                                    TextField("Enter your password", text: $password)
-                                        .textContentType(.password)
-                                        .autocapitalization(.none)
-                                        .autocorrectionDisabled()
-                                } else {
-                                    SecureField("Enter your password", text: $password)
-                                        .textContentType(.password)
-                                        .autocapitalization(.none)
-                                        .autocorrectionDisabled()
-                                }
+                            HStack(spacing: 4) {
+                                Link("Terms of Service", destination: URL(string: "https://yourapp.com/terms")!)
+                                    .font(.footnote)
+                                    .foregroundColor(.primary)
                                 
-                                Button(action: { showPassword.toggle() }) {
-                                    Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
-                                        .foregroundColor(.secondary)
-                                }
+                                Text("and")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                
+                                Link("Privacy Policy", destination: URL(string: "https://yourapp.com/privacy")!)
+                                    .font(.footnote)
+                                    .foregroundColor(.primary)
                             }
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
                         }
+                        .padding(.bottom, 24)
                         
-                        // Remember Me Toggle
-                        Toggle("Remember Me", isOn: $rememberMe)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.top, 8)
-                    }
-                    .padding(.horizontal, 24)
-                    
-                    // Error Message
-                    if let error = authViewModel.error?.localizedDescription {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .font(.system(size: 14))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    
-                    // Login Button
-                    CustomButton(
-                        title: "Sign In",
-                        action: handleLogin,
-                        style: .primary,
-                        isLoading: authViewModel.isLoading,
-                        disabled: !isLoginEnabled
-                    )
-                    .padding(.horizontal, 24)
-                    
-                    // Phone Sign In Button
-                    Button(action: {
-                        withAnimation {
-                            showPhoneVerification = true
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "phone.fill")
-                            Text("Sign in with Phone")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
+                        // 30-Day Free Trial Message
+                        Text("Start with a 30-day free trial!")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                            .padding(.bottom, isKeyboardVisible ? 20 : 40)
                     }
                     .padding(.horizontal)
-                    .sheet(isPresented: $showPhoneVerification) {
-                        PhoneVerificationView()
-                    }
-                    
-                    // Forgot Password
-                    Button(action: { showingForgotPassword = true }) {
-                        Text("Forgot Password?")
-                            .foregroundColor(Color("Primary"))
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                    .sheet(isPresented: $showingForgotPassword) {
-                        ForgotPasswordView()
-                    }
-                    
-                    Spacer()
-                    
-                    // Register Link
-                    NavigationLink(destination: RegisterView()) {
-                        HStack {
-                            Text("Don't have an account?")
-                                .foregroundColor(.secondary)
-                            Text("Sign Up")
-                                .foregroundColor(Color("Primary"))
-                                .fontWeight(.medium)
-                        }
-                        .font(.system(size: 16))
-                    }
-                    .padding(.bottom, isKeyboardVisible ? 20 : 40)
+                }
+                
+                // Loading overlay
+                if authViewModel.isLoading {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
                 }
             }
             .navigationBarHidden(true)
+            .alert(isPresented: Binding<Bool>(
+                get: { authViewModel.errorMessage != nil },
+                set: { if !$0 { authViewModel.errorMessage = nil } }
+            )) {
+                Alert(
+                    title: Text("Sign In Error"),
+                    message: Text(authViewModel.errorMessage ?? "An unknown error occurred"),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
         }
         .onAppear {
             setupKeyboardNotifications()
-            loadSavedEmail()
         }
-    }
-    
-    // MARK: - Computed Properties
-    private var isLoginEnabled: Bool {
-        !email.isEmpty && !password.isEmpty && EmailValidator.isValid(email) && !authViewModel.isLoading
     }
     
     // MARK: - Methods
-    private func handleLogin() {
-        guard isLoginEnabled else { return }
-        
-        // Save email if Remember Me is enabled
-        if rememberMe {
-            UserDefaults.standard.set(email, forKey: "savedEmail")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "savedEmail")
-        }
-        
-        // Attempt login - Using Task for async call
-        Task {
-            try await authViewModel.signIn(
-                email: email,
-                password: password
-            )
-        }
-    }
-    
-    private func loadSavedEmail() {
-        if rememberMe {
-            email = UserDefaults.standard.string(forKey: "savedEmail") ?? ""
-        }
-    }
-    
     private func setupKeyboardNotifications() {
         NotificationCenter.default.addObserver(
             forName: UIResponder.keyboardWillShowNotification,
-            object: nil,
-            queue: .main
+            object: nil, queue: .main
         ) { _ in
             isKeyboardVisible = true
         }
         
         NotificationCenter.default.addObserver(
             forName: UIResponder.keyboardWillHideNotification,
-            object: nil,
-            queue: .main
+            object: nil, queue: .main
         ) { _ in
             isKeyboardVisible = false
         }
     }
 }
 
-#Preview {
-    LoginView()
-        .environmentObject(AuthenticationViewModel())
+struct LoginView_Previews: PreviewProvider {
+    static var previews: some View {
+        LoginView()
+            .environmentObject(AuthenticationViewModel())
+    }
 }
