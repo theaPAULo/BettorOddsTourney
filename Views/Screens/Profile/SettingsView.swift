@@ -26,7 +26,7 @@ struct SettingsView: View {
     // MARK: - Initialization
     init() {
         // Initialize preferences from current user if available
-        if let currentUser = AuthenticationViewModel.shared.user {
+        if let currentUser = authViewModel.user {
             _preferences = State(initialValue: currentUser.preferences)
         } else {
             _preferences = State(initialValue: UserPreferences())

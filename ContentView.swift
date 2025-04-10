@@ -1,16 +1,10 @@
-//
-//  ContentView.swift
-//  BettorOdds
-//
-//  Updated by Paul Soni on 4/9/25
-//  Version: 3.0.0 - Modified for tournament system
-//
+// ContentView.swift
 
 import SwiftUI
 import FirebaseAuth
 
 struct ContentView: View {
-    @ObservedObject private var authViewModel = AuthenticationViewModel.shared
+    @EnvironmentObject var authViewModel: AuthenticationViewModel
     
     var body: some View {
         ZStack {
@@ -64,5 +58,6 @@ struct ContentView: View {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environmentObject(AuthenticationViewModel())
     }
 }

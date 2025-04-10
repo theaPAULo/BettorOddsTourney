@@ -1,9 +1,4 @@
-//
-//  BettorOddsApp.swift
-//  BettorOdds
-//
-//  Version: 2.2.0 - Fixed Firebase notification handling
-//  Updated: February 2025
+// BettorOddsApp.swift
 
 import SwiftUI
 import FirebaseCore
@@ -94,12 +89,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 @main
 struct BettorOddsApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @StateObject private var authViewModel = AuthenticationViewModel()
     @State private var showLaunch = true
     
     var body: some Scene {
         WindowGroup {
             ZStack {
                 ContentView()
+                    .environmentObject(authViewModel)
                 
                 if showLaunch {
                     LaunchScreen()

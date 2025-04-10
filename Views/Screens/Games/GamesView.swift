@@ -12,7 +12,7 @@ import FirebaseAuth
 struct GamesView: View {
     // MARK: - Properties
     @StateObject private var viewModel = GamesViewModel()
-    @ObservedObject private var authViewModel = AuthenticationViewModel.shared
+    @EnvironmentObject var authViewModel: AuthenticationViewModel  // Updated line
     @State private var showBetModal = false
     @State private var selectedGame: Game?
     @State private var selectedTeam: (gameId: String, team: TeamSelection)?
