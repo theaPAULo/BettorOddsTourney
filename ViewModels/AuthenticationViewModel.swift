@@ -55,7 +55,7 @@ class AuthenticationViewModel: ObservableObject {
                     self.user = user
                     self.isAuthenticated = true
                 } else {
-                    self.error = NSError(domain: "", code: -1, userInfo: [NSLocalDescriptionKey: "Failed to parse user data"])
+                    self.error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse user data"])
                 }
                 self.isLoading = false
             }

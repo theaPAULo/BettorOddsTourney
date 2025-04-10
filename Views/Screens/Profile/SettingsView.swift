@@ -1,6 +1,6 @@
-// Updated SettingsView.swift
-// Version: 3.0.0 - Modified for tournament system
-// Last modified: 2025-04-09
+// Views/Screens/Profile/SettingsView.swift
+// Version: 3.0.0 - Modified for tournament system and environment object pattern
+// Last modified: 2025-04-10
 
 import SwiftUI
 import FirebaseFirestore
@@ -19,19 +19,9 @@ struct SettingsView: View {
     @State private var requireBiometrics = true
     @State private var showingBiometricPrompt = false
     @State private var showingDisableBiometricsAlert = false
-    @State private var preferences: UserPreferences
+    @State private var preferences = UserPreferences() // Default empty preferences
     @State private var showError = false
     @State private var errorMessage: String?
-    
-    // MARK: - Initialization
-    init() {
-        // Initialize preferences from current user if available
-        if let currentUser = authViewModel.user {
-            _preferences = State(initialValue: currentUser.preferences)
-        } else {
-            _preferences = State(initialValue: UserPreferences())
-        }
-    }
     
     var body: some View {
         NavigationView {
@@ -200,6 +190,13 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "An unknown error occurred")
+            }
+            .onAppear {
+                // Initialize preferences when view appears
+                if let user = authViewModel.user {
+                    preferences = user.preferences
+                    requireBiometrics = user.preferences.requireBiometricsForGreenCoins
+                }
             }
         }
     }
