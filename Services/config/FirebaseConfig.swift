@@ -1,3 +1,5 @@
+// Services/config/FirebaseConfig.swift
+
 import FirebaseCore
 import FirebaseFirestore
 import FirebaseAuth
@@ -15,25 +17,15 @@ class FirebaseConfig {
     
     // MARK: - Initialization
     private init() {
-        // Check if Firebase is already configured
+        // Do NOT configure Firebase here anymore - the AppDelegate will do it
+        // We just need to check if it's configured
         if FirebaseApp.app() == nil {
-            // Configure Firebase only if not already configured
+            print("⚠️ Warning: Firebase is not configured. This should be done in AppDelegate.")
+            // Configure as a fallback only
             FirebaseApp.configure()
-            print("✅ Firebase app configured")
-            
-            // Request notification permissions
-            let center = UNUserNotificationCenter.current()
-            center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                if let error = error {
-                    print("❌ Notification permission error: \(error)")
-                } else {
-                    print("✅ Notification permission granted: \(granted)")
-                }
-            }
-            
-            #if DEBUG
-            print("🔧 Running in DEBUG mode")
-            #endif
+            print("✅ Firebase app configured (fallback)")
+        } else {
+            print("✅ Firebase already configured, using existing app")
         }
         
         // Initialize Firebase services

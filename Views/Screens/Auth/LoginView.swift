@@ -69,8 +69,8 @@ struct LoginView: View {
                             SignInWithAppleButton(
                                 .signIn,
                                 onRequest: { request in
-                                    // Request setup handled by our prepareAppleSignIn method
-                                    let request = authViewModel.prepareAppleSignIn()
+                                    // Let Apple handle the request creation
+                                    // No need to override the request like this
                                 },
                                 onCompletion: { result in
                                     switch result {

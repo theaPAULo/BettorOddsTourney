@@ -35,9 +35,13 @@ class AuthenticationViewModel: ObservableObject {
             if let user = user, let userId = user.uid as String? {
                 self.isAuthenticated = true
                 
-                // Load user data
+                // Launch task to load user data
                 Task {
-                    try? await self.loadUser(userId: userId)
+                    do {
+                        try await self.loadUser(userId: userId)
+                    } catch {
+                        print("❌ Error loading user data: \(error.localizedDescription)")
+                    }
                 }
             } else {
                 self.isAuthenticated = false
@@ -47,26 +51,23 @@ class AuthenticationViewModel: ObservableObject {
     }
     
     private func loadUser(userId: String) async throws {
-        isLoading = true
+        // Since we added @MainActor to the class, we don't need MainActor.run here
+        self.isLoading = true
         
         do {
             // Use UserRepository instead of direct Firestore access
             let user = try await userRepository.fetchCurrentUser(userId: userId)
             
-            await MainActor.run {
-                if let user = user {
-                    self.user = user
-                    self.isAuthenticated = true
-                } else {
-                    self.error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to load user data"])
-                }
-                self.isLoading = false
+            if let user = user {
+                self.user = user
+                self.isAuthenticated = true
+            } else {
+                self.error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to load user data"])
             }
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.error = error
-                self.isLoading = false
-            }
+            self.error = error
+            self.isLoading = false
             throw error
         }
     }
@@ -81,42 +82,41 @@ class AuthenticationViewModel: ObservableObject {
             return
         }
         
-        isLoading = true
+        self.isLoading = true
         
         authService.signInWithGoogle(presenting: rootViewController) { [weak self] result in
             guard let self = self else { return }
             
-            // Use Task to handle potential async work
-            Task {
-                await MainActor.run {
-                    self.isLoading = false
-                    
-                    switch result {
-                    case .success(let user):
-                        self.user = user
-                        self.isAuthenticated = true
-                    case .failure(let error):
-                        self.error = error
-                        self.errorMessage = error.localizedDescription
-                    }
+            // Use Task to handle potential async work and update UI on main thread
+            Task { @MainActor in
+                self.isLoading = false
+                
+                switch result {
+                case .success(let user):
+                    self.user = user
+                    self.isAuthenticated = true
+                case .failure(let error):
+                    self.error = error
+                    self.errorMessage = error.localizedDescription
                 }
             }
         }
     }
     
-    /// Prepare for Apple Sign In
+    /// Prepares request for Apple Sign-In
     func prepareAppleSignIn() -> ASAuthorizationAppleIDRequest {
         return authService.prepareAppleSignInRequest()
     }
     
-    /// Handle Apple Sign In completion
+    // Handle Apple Sign In completion - fix similar threading issues
     func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
-        isLoading = true
+        self.isLoading = true
         
         authService.handleAppleSignInCompletion(result) { [weak self] result in
             guard let self = self else { return }
             
-            DispatchQueue.main.async {
+            // Use Task to update UI on main thread
+            Task { @MainActor in
                 self.isLoading = false
                 
                 switch result {
