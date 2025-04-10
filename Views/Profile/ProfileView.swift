@@ -1,8 +1,9 @@
-// Updated file: Views/Profile/ProfileView.swift
-// Version: 3.0.0 - Added tournament support
-// Updated: April 2025
+// Updated ProfileView.swift
+// Version: 3.0.3 - Fixed compilation errors
+// Updated: 2025-04-09
 
 import SwiftUI
+import FirebaseAuth
 
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthenticationViewModel
@@ -122,37 +123,41 @@ struct ProfileView: View {
                             // Add subscription button
                             ActionButton(
                                 title: authViewModel.user?.subscriptionStatus == .active ? "Manage Subscription" : "Subscribe Now",
-                                icon: "trophy.fill"
-                            ) {
-                                showingSubscription = true
-                            }
+                                icon: "trophy.fill",
+                                action: {
+                                    showingSubscription = true
+                                }
+                            )
                             
                             ActionButton(
                                 title: "Transaction History",
-                                icon: "clock.fill"
-                            ) {
-                                // Navigate to transaction history
-                            }
+                                icon: "clock.fill",
+                                action: {
+                                    // Navigate to transaction history
+                                }
+                            )
                             
                             ActionButton(
                                 title: "Settings",
-                                icon: "gearshape.fill"
-                            ) {
-                                showingSettings = true
-                            }
+                                icon: "gearshape.fill",
+                                action: {
+                                    showingSettings = true
+                                }
+                            )
                             
                             ActionButton(
                                 title: "Sign Out",
                                 icon: "rectangle.portrait.and.arrow.right",
                                 showDivider: false,
-                                isDestructive: true
-                            ) {
-                                showSignOutConfirmation()
-                            }
+                                isDestructive: true,
+                                action: {
+                                    showSignOutConfirmation()
+                                }
+                            )
                         }
                         .background(Color.backgroundSecondary)
                         .cornerRadius(12)
-                        .shadow(color: Color.backgroundPrimary.opacity(0.1), radius: 5)
+                        .shadow(color: Color.backgroundPrimary.opacity(0.1), radius: 5, x: 0, y: 0)
                         .padding(.horizontal)
                     }
                 }
@@ -186,10 +191,48 @@ struct ProfileView: View {
         
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Sign Out", style: .destructive) { _ in
-            authViewModel.signOut()
+            do {
+                try self.authViewModel.signOut()
+            } catch {
+                print("Error signing out: \(error.localizedDescription)")
+            }
         })
         
         viewController.present(alert, animated: true)
+    }
+}
+
+// ActionButton implementation with proper parameter structure
+struct ActionButton: View {
+    let title: String
+    let icon: String
+    var showDivider: Bool = true
+    var isDestructive: Bool = false
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(isDestructive ? .red : .primary)
+                
+                Text(title)
+                    .foregroundColor(isDestructive ? .red : .primary)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+        }
+        .buttonStyle(PlainButtonStyle())
+        
+        if showDivider {
+            Divider()
+                .padding(.leading)
+        }
     }
 }
 
@@ -316,4 +359,9 @@ struct StatItem: View {
                 .foregroundColor(.textPrimary)
         }
     }
+}
+
+#Preview {
+    ProfileView()
+        .environmentObject(AuthenticationViewModel())
 }

@@ -1,8 +1,9 @@
-// RegisterView.swift
-// Version: 3.0.0 - Added phone registration support
-// Updated: February 2025
+// Updated RegisterView.swift
+// Version: 3.0.0 - Modified for tournament system
+// Last modified: 2025-04-09
 
 import SwiftUI
+import FirebaseAuth
 
 struct RegisterView: View {
     // MARK: - Properties
@@ -20,6 +21,7 @@ struct RegisterView: View {
     @State private var isKeyboardVisible = false
     @State private var emailError: String?
     @State private var registrationType: RegistrationType = .email
+    @State private var errorMessage: String? // Add this to handle error messages
     
     // MARK: - Enums
     enum RegistrationType {
@@ -102,7 +104,7 @@ struct RegisterView: View {
                 }
                 
                 // Error Message
-                if let error = authViewModel.errorMessage {
+                if let error = errorMessage {
                     Text(error)
                         .foregroundColor(.statusError)
                         .font(.caption)
@@ -262,33 +264,24 @@ struct RegisterView: View {
     private func handleRegistration() {
         guard isFormValid else { return }
         
-        let userData: [String: Any] = [
-            "dateJoined": Date(),
-            "dateOfBirth": dateOfBirth,
-            "yellowCoins": 100,  // Starting bonus
-            "greenCoins": 0,
-            "dailyGreenCoinsUsed": 0,
-            "isPremium": false,
-            "lastBetDate": Date(),
-            "preferences": [
-                "useBiometrics": false,
-                "darkMode": false,
-                "notificationsEnabled": true,
-                "requireBiometricsForGreenCoins": true,
-                "saveCredentials": true,
-                "rememberMe": false
-            ]
-        ]
-        
-        switch registrationType {
-        case .email:
-            // Email registration
-            authViewModel.signUp(email: email, password: password, userData: userData)
-        case .phone:
-            // Phone registration
-            let formattedNumber = "+1" + phoneNumber.filter { $0.isNumber }
-            Task {
-                await authViewModel.sendVerificationCode(to: formattedNumber)
+        Task {
+            do {
+                switch registrationType {
+                case .email:
+                    // Email registration - just pass email and password to signUp
+                    try await authViewModel.signUp(email: email, password: password)
+                    
+                case .phone:
+                    // Phone registration
+                    let formattedNumber = "+1" + phoneNumber.filter { $0.isNumber }
+                    
+                    // We need a different approach for phone authentication
+                    // This is just a placeholder - proper phone auth would need to be implemented
+                    errorMessage = "Phone registration not fully implemented yet"
+                }
+            } catch {
+                // Handle errors
+                errorMessage = error.localizedDescription
             }
         }
     }

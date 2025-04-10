@@ -1,9 +1,6 @@
-//
-//  PhoneVerificationView.swift
-//  BettorOdds
-//
-//  Version: 1.1.0 - Fixed layout constraints
-//  Updated: February 2025
+// Updated PhoneVerificationView.swift
+// Version: 1.2.0 - Modified for tournament system
+// Last updated: 2025-04-09
 
 import SwiftUI
 import FirebaseAuth
@@ -17,6 +14,8 @@ struct PhoneVerificationView: View {
     @State private var isCodeSent = false
     @FocusState private var isPhoneFocused: Bool
     @FocusState private var isCodeFocused: Bool
+    @State private var errorMessage: String? = nil
+    @State private var isProcessing = false
     
     // MARK: - Phone Formatting
     private func formatPhoneNumber(_ number: String) -> String {
@@ -112,26 +111,26 @@ struct PhoneVerificationView: View {
                         title: isCodeSent ? "Verify Code" : "Send Code",
                         action: {
                             if isCodeSent {
-                                Task {
-                                    await authViewModel.verifyCode(verificationCode)
-                                }
+                                verifyCode()
                             } else {
-                                let formattedNumber = "+1" + phoneNumber.filter { $0.isNumber }
-                                Task {
-                                    await authViewModel.sendVerificationCode(to: formattedNumber)
-                                    withAnimation {
-                                        isCodeSent = true
-                                        isCodeFocused = true
-                                    }
-                                }
+                                sendVerificationCode()
                             }
                         },
-                        isLoading: authViewModel.isLoading,
+                        isLoading: isProcessing,
                         disabled: isCodeSent ?
                             verificationCode.count != 6 :
                             phoneNumber.filter { $0.isNumber }.count != 10
                     )
                     .padding(.horizontal)
+                    
+                    // Error message
+                    if let error = errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                     
                     Spacer()
                 }
@@ -140,14 +139,61 @@ struct PhoneVerificationView: View {
             .navigationBarItems(leading: Button("Cancel") { dismiss() })
             .ignoresSafeArea(.keyboard, edges: .bottom) // Important fix for keyboard constraints
         }
-        .alert("Error", isPresented: .constant(authViewModel.errorMessage != nil)) {
-            Button("OK") {
-                authViewModel.errorMessage = nil
+    }
+    
+    // MARK: - Phone Auth Methods
+    
+    private func sendVerificationCode() {
+        isProcessing = true
+        errorMessage = nil
+        
+        let formattedNumber = "+1" + phoneNumber.filter { $0.isNumber }
+        
+        // Using Firebase Phone Auth directly
+        PhoneAuthProvider.provider().verifyPhoneNumber(formattedNumber, uiDelegate: nil) { verificationID, error in
+            isProcessing = false
+            
+            if let error = error {
+                errorMessage = error.localizedDescription
+                return
             }
-        } message: {
-            if let error = authViewModel.errorMessage {
-                Text(error)
+            
+            // Store verification ID in UserDefaults for the next step
+            UserDefaults.standard.set(verificationID, forKey: "authVerificationID")
+            
+            // Update UI to show verification code input
+            withAnimation {
+                isCodeSent = true
+                isCodeFocused = true
             }
+        }
+    }
+    
+    private func verifyCode() {
+        guard let verificationID = UserDefaults.standard.string(forKey: "authVerificationID") else {
+            errorMessage = "Error retrieving verification data. Please try again."
+            return
+        }
+        
+        isProcessing = true
+        errorMessage = nil
+        
+        let credential = PhoneAuthProvider.provider().credential(
+            withVerificationID: verificationID,
+            verificationCode: verificationCode
+        )
+        
+        Auth.auth().signIn(with: credential) { authResult, error in
+            isProcessing = false
+            
+            if let error = error {
+                errorMessage = error.localizedDescription
+                return
+            }
+            
+            // Successfully verified and signed in
+            UserDefaults.standard.removeObject(forKey: "authVerificationID")
+            dismiss()
         }
     }
 }

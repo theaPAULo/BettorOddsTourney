@@ -1,12 +1,10 @@
-//
-//  SettingsView.swift
-//  BettorOdds
-//
-//  Created by Claude on 1/31/25.
-//  Version: 2.0.0
-//
+// Updated SettingsView.swift
+// Version: 3.0.0 - Modified for tournament system
+// Last modified: 2025-04-09
 
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
@@ -22,11 +20,13 @@ struct SettingsView: View {
     @State private var showingBiometricPrompt = false
     @State private var showingDisableBiometricsAlert = false
     @State private var preferences: UserPreferences
+    @State private var showError = false
+    @State private var errorMessage: String?
     
     // MARK: - Initialization
     init() {
         // Initialize preferences from current user if available
-        if let currentUser = try? AuthenticationViewModel().user {
+        if let currentUser = AuthenticationViewModel.shared.user {
             _preferences = State(initialValue: currentUser.preferences)
         } else {
             _preferences = State(initialValue: UserPreferences())
@@ -146,8 +146,13 @@ struct SettingsView: View {
                             .foregroundColor(.statusError)
                     }
                     Button(action: {
-                        authViewModel.signOut()
-                        dismiss()
+                        do {
+                            try authViewModel.signOut()
+                            dismiss()
+                        } catch {
+                            errorMessage = error.localizedDescription
+                            showError = true
+                        }
                     }) {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                             .foregroundColor(.statusError)
@@ -191,6 +196,11 @@ struct SettingsView: View {
             } message: {
                 Text("Disabling biometric authentication will reduce the security of your real money transactions. Are you sure you want to continue?")
             }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
         }
     }
     
@@ -215,7 +225,9 @@ struct SettingsView: View {
             var updatedUser = user
             updatedUser.preferences = preferences
             
-            try await authViewModel.updateUser(updatedUser)
+            // Create a UserRepository instead of directly calling updateUser
+            let userRepository = UserRepository()
+            try await userRepository.save(updatedUser)
             
             // Save remember me state
             UserDefaults.standard.set(preferences.rememberMe, forKey: "rememberMe")
@@ -229,6 +241,8 @@ struct SettingsView: View {
                 requireBiometrics = !requireBiometrics
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.error)
+                errorMessage = error.localizedDescription
+                showError = true
             }
         }
     }
