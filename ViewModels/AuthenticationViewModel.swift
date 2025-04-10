@@ -17,6 +17,8 @@ class AuthenticationViewModel: ObservableObject {
     // MARK: - Private Properties
     private let authService = AuthenticationService.shared
     private var cancellables = Set<AnyCancellable>()
+    // Add this property under the private properties section
+    private let userRepository = UserRepository()
     
     // MARK: - Initialization
     init() {
@@ -48,14 +50,15 @@ class AuthenticationViewModel: ObservableObject {
         isLoading = true
         
         do {
-            let snapshot = try await FirebaseConfig.shared.db.collection("users").document(userId).getDocument()
+            // Use UserRepository instead of direct Firestore access
+            let user = try await userRepository.fetchCurrentUser(userId: userId)
             
             await MainActor.run {
-                if let user = User(document: snapshot) {
+                if let user = user {
                     self.user = user
                     self.isAuthenticated = true
                 } else {
-                    self.error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to parse user data"])
+                    self.error = NSError(domain: "", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to load user data"])
                 }
                 self.isLoading = false
             }

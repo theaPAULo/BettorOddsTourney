@@ -22,6 +22,9 @@ struct SettingsView: View {
     @State private var preferences = UserPreferences() // Default empty preferences
     @State private var showError = false
     @State private var errorMessage: String?
+    // Add this under the other @State properties
+    @State private var connectionTestResult: String?
+    @State private var showingConnectionTest = false
     
     var body: some View {
         NavigationView {
@@ -147,7 +150,27 @@ struct SettingsView: View {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                             .foregroundColor(.statusError)
                     }
+                }
+                
+                // Add this as a new section at the bottom of your List
+                Section {
+                    Button(action: {
+                        TestService.shared.testFirebaseConnection { success, message in
+                            DispatchQueue.main.async {
+                                connectionTestResult = success ? "✅ \(message)" : "❌ \(message)"
+                                showingConnectionTest = true
+                            }
+                        }
+                    }) {
+                        Label("Test Firebase Connection", systemImage: "network")
+                            .foregroundColor(.textPrimary)
+                    }
                 } header: {
+                    Text("Diagnostics")
+                        .foregroundColor(.textSecondary)
+                }
+                
+                header: {
                     Text("Danger Zone")
                         .foregroundColor(.statusError)
                 }
@@ -197,6 +220,12 @@ struct SettingsView: View {
                     preferences = user.preferences
                     requireBiometrics = user.preferences.requireBiometricsForGreenCoins
                 }
+            }
+            // Add this below the other .alert modifiers
+            .alert("Connection Test", isPresented: $showingConnectionTest) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(connectionTestResult ?? "No result")
             }
         }
     }
@@ -259,6 +288,8 @@ struct InfoRow: View {
         }
     }
 }
+
+
 
 #Preview {
     SettingsView()

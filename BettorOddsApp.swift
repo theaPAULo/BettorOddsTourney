@@ -12,6 +12,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Initialize Firebase configuration
         _ = FirebaseConfig.shared
         
+        // Add this right after Firebase initialization in your AppDelegate
+        TestService.shared.testFirebaseConnection { success, message in
+            if success {
+                print("✅ \(message)")
+            } else {
+                print("❌ \(message)")
+            }
+        }
+        
         // Set notification delegate
         UNUserNotificationCenter.current().delegate = self
         
@@ -29,6 +38,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 }
             }
         
+        // Add this to your AppDelegate class at the end of the application(_:didFinishLaunchingWithOptions:) method
+        // Just before the return true statement:
+
+        Task {
+            do {
+                try await DataInitializationService.shared.initializeSettings()
+                print("✅ App settings initialized")
+            } catch {
+                print("❌ Failed to initialize app settings: \(error)")
+            }
+        }
         return true
     }
     

@@ -2,8 +2,8 @@
 //  AuthenticationService.swift
 //  BettorOdds
 //
-//  Created by Paul Soni on 4/10/25.
-//
+//  Updated by Paul Soni on 4/10/25.
+//  Version: 1.0.1 - Fixed Google Sign-In implementation
 
 
 // Services/AuthenticationService.swift
@@ -41,8 +41,8 @@ class AuthenticationService {
         // Create Google Sign In configuration
         let config = GIDConfiguration(clientID: clientID)
         
-        // Start Google Sign In flow
-        GIDSignIn.sharedInstance.signIn(with: config, presenting: viewController) { [weak self] user, error in
+        // Start Google Sign In flow - Updated for latest Google Sign In SDK
+        GIDSignIn.sharedInstance.signIn(withPresenting: viewController) { [weak self] result, error in
             guard let self = self else { return }
             
             if let error = error {
@@ -50,9 +50,14 @@ class AuthenticationService {
                 return
             }
             
-            guard let authentication = user?.authentication,
-                  let idToken = authentication.idToken else {
-                let error = NSError(domain: "Authentication", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing auth token"])
+            guard let result = result else {
+                let error = NSError(domain: "Authentication", code: 1, userInfo: [NSLocalizedDescriptionKey: "Sign in result is nil"])
+                completion(.failure(error))
+                return
+            }
+            
+            guard let idToken = result.user.idToken?.tokenString else {
+                let error = NSError(domain: "Authentication", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing ID token"])
                 completion(.failure(error))
                 return
             }
@@ -60,11 +65,19 @@ class AuthenticationService {
             // Create Firebase credential
             let credential = GoogleAuthProvider.credential(
                 withIDToken: idToken,
-                accessToken: authentication.accessToken
+                accessToken: result.user.accessToken.tokenString
             )
             
+            // Get email from Google user if available
+            let email = result.user.profile?.email
+            
             // Sign in with Firebase
-            self.handleFirebaseSignIn(with: credential, provider: .google, completion: completion)
+            self.handleFirebaseSignIn(
+                with: credential,
+                provider: .google,
+                email: email,
+                completion: completion
+            )
         }
     }
     
@@ -156,10 +169,10 @@ class AuthenticationService {
                 }
             }
             
-            // Sign in with Firebase, passing along display name from Apple if available
+            // Sign in with Firebase, passing along display name and email from Apple if available
             self.handleFirebaseSignIn(
                 with: credential,
-                provider: .admin,
+                provider: .apple,
                 displayName: displayName,
                 email: appleIDCredential.email,
                 completion: completion
@@ -175,7 +188,7 @@ class AuthenticationService {
     /// Handles sign in with Firebase using the provided credential
     private func handleFirebaseSignIn(
         with credential: AuthCredential,
-        provider: User.AdminRole,
+        provider: User.AuthProvider,
         displayName: String? = nil,
         email: String? = nil,
         completion: @escaping (Result<User, Error>) -> Void
@@ -205,6 +218,7 @@ class AuthenticationService {
                 
                 let isNewUser = snapshot?.exists == false
                 
+                // Replace the part where a new user is created with this:
                 if isNewUser {
                     // Create new user for Firestore
                     var user = User(
@@ -212,8 +226,12 @@ class AuthenticationService {
                         email: firebaseUser.email ?? email ?? ""
                     )
                     
-                    // Set admin role based on authentication provider
-                    user.adminRole = provider
+                    // Set auth provider based on the credential provider
+                    if credential.provider == "google.com" {
+                        user.authProvider = .google
+                    } else if credential.provider == "apple.com" {
+                        user.authProvider = .apple
+                    }
                     
                     // Set up trial period (30 days from now)
                     user.subscriptionStatus = .active
@@ -226,11 +244,16 @@ class AuthenticationService {
                     do {
                         let userData = user.toDictionary()
                         try self.db.collection("users").document(user.id).setData(userData)
+                        
+                        // Initialize user's first batch of coins
+                        try await UserService.shared.resetWeeklyCoins(for: user.id)
+                        
                         completion(.success(user))
                     } catch {
                         completion(.failure(error))
                     }
-                } else {
+                }
+                else {
                     // User exists, fetch their data
                     if let snapshot = snapshot, let user = User(document: snapshot) {
                         // Update last login date
