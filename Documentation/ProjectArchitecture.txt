@@ -1,0 +1,189 @@
+Project Architecture Document
+Component Overview
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  │
+│  │    Views    │◀──▶│  ViewModels │◀──▶│      Repositories       │  │
+│  └─────────────┘    └─────────────┘    └─────────────────────────┘  │
+│         ▲                  ▲                       ▲                │
+│         │                  │                       │                │
+│         ▼                  ▼                       ▼                │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────────┐  │
+│  │  Components │    │   Services  │◀──▶│    Firebase/Backend     │  │
+│  └─────────────┘    └─────────────┘    └─────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+Key System Components
+1. Authentication System
+
+Purpose: Manage user identity via Google/Apple Sign-In
+Core Components:
+
+AuthenticationViewModel: Handles auth state and user session
+UserRepository: Persists and retrieves user data
+UserService: Interfaces with Firebase Auth
+User model: Represents authenticated user
+
+
+Data Flow: Auth provider → Firebase Auth → UserService → UserRepository → AuthViewModel → UI
+
+2. Tournament System
+
+Purpose: Manage weekly competitions and leaderboards
+Core Components:
+
+Tournament model: Weekly competition details
+LeaderboardEntry model: User ranking data
+TournamentService: Tournament CRUD operations
+TournamentViewModel: Manages tournament UI state
+LeaderboardViewModel: Processes leaderboard data
+
+
+Data Flow: User actions → ViewModel → Repository → Firebase → UI updates
+
+3. Betting System
+
+Purpose: Allow users to place bets on sports events
+Core Components:
+
+Game model: Sports event details
+Bet model: User bet information
+GamesViewModel: Manages available games
+BetModalViewModel: Handles bet placement
+MyBetsViewModel: Tracks user's betting history
+OddsService: Fetches current odds data
+
+
+Data Flow: User selects game → Places bet → Updates tournament coins → Updates leaderboard
+
+4. Subscription System
+
+Purpose: Manage trial period and paid subscriptions
+Core Components:
+
+SubscriptionViewModel: Handles subscription state
+TransactionService: Processes payments
+UserSubscription model: Tracks user subscription status
+Trial tracking: Logic for free trial period
+
+
+Data Flow: User signs up → Free trial → Payment prompt → Subscription active
+
+5. Admin System
+
+Purpose: Allow administrators to manage the platform
+Core Components:
+
+AdminViewModel: Dashboard data management
+AdminGameManagementViewModel: Game administration
+AdminTournamentViewModel: Tournament management
+SystemHealth model: Platform health metrics
+
+
+Data Flow: Admin actions → Firebase updates → System changes
+
+Data Models
+User
+swiftstruct User {
+    let id: String
+    let email: String
+    let authProvider: AuthProvider // Google or Apple
+    var subscriptionStatus: SubscriptionStatus
+    var trialStartDate: Date?
+    var subscriptionExpiryDate: Date?
+    var weeklyCoins: Int
+    var tournamentStats: TournamentStats
+}
+Tournament
+swiftstruct Tournament {
+    let id: String
+    let startDate: Date
+    let endDate: Date
+    let status: TournamentStatus
+    var participantCount: Int
+    var prizePool: Double
+    var payoutStructure: [PayoutTier]
+}
+Game
+swiftstruct Game {
+    let id: String
+    let homeTeam: String
+    let awayTeam: String
+    let time: Date
+    let league: String
+    let spread: Double
+    var status: GameStatus
+    var score: GameScore?
+}
+Bet
+swiftstruct Bet {
+    let id: String
+    let userId: String
+    let gameId: String
+    let tournamentId: String
+    let amount: Int
+    let team: String
+    let spread: Double
+    var status: BetStatus
+}
+Implementation Workflow
+I recommend the following modular development approach:
+1. Authentication Module (Keep in context)
+
+AuthenticationViewModel.swift
+User.swift
+UserService.swift
+UserRepository.swift
+GoogleSignInHelper.swift
+AppleSignInHelper.swift
+
+2. Tournament Module (Keep in context)
+
+Tournament.swift
+LeaderboardEntry.swift
+TournamentViewModel.swift
+LeaderboardViewModel.swift
+TournamentService.swift
+
+3. Betting Module (Keep in context)
+
+Game.swift
+Bet.swift
+GameScore.swift
+GamesViewModel.swift
+BetModalViewModel.swift
+GameService.swift
+BetService.swift
+
+4. Subscription Module (Keep in context)
+
+SubscriptionViewModel.swift
+UserSubscription.swift
+TransactionService.swift
+TrialManager.swift
+
+Next Steps
+
+First Priority: Implement Google/Apple Sign-In
+
+Configure Firebase for OAuth
+Create sign-in UI
+Handle user creation/retrieval
+
+
+Second Priority: Complete Tournament System
+
+Implement weekly tournament creation
+Build leaderboard functionality
+Create tournament joining workflow
+
+
+Third Priority: Subscription System with Trial
+
+Build trial tracking
+Implement subscription UI
+Create payment integration
+
+
+
+For each feature area, we'll load only the directly relevant files into context, work on them, and then move to the next feature area.

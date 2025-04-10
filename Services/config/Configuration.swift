@@ -20,7 +20,7 @@ import Foundation
 enum Configuration {
     /// API Keys and Endpoints
     enum API {
-        static let oddsAPIKey = "aec5b19b654411a05206d9d67dfb7764"  // Replace with your actual API key
+        static let oddsAPIKey = "a2358fa8aa8f101a940462e5d0f13581"  // Replace with your actual API key
         static let oddsAPIBaseURL = "https://api.the-odds-api.com/v4/sports"
     }
     

@@ -1,254 +1,45 @@
-BettorOdds Mobile App
-Overview
-BettorOdds is a sports betting platform focused on responsible gambling and user experience. The app features a dual-currency system, daily betting limits, and real-time odds updates.
-Current Version
+# BettorOdds: Tournament-Based Sports Betting
 
-Version: 1.0.0
-Last Updated: January 29, 2025
-Status: Development
+BettorOdds is a subscription-based sports betting application using tournament mechanics and virtual coins for an engaging, competitive experience.
 
-Technical Stack
-Frontend
+## Features
 
-SwiftUI for iOS native development
-React Native components for cross-platform shared components
-Custom UI components with Tailwind CSS
+- **Weekly Tournaments**: Compete for real cash prizes in weekly tournaments
+- **Tournament Coins**: Receive 1,000 coins weekly to bet with
+- **Leaderboards**: Track your performance against other players
+- **Secure Authentication**: Sign in with Google or Apple
+- **Real-Time Odds**: Up-to-date betting odds from major providers
+- **Multi-Sport Support**: Bet on NBA, NFL, MLB and more
+- **30-Day Free Trial**: Try all features before subscribing
 
-Backend
+## Architecture
 
-Firebase
+BettorOdds is built with SwiftUI using an MVVM architecture and Firebase backend services:
 
-Authentication
-Firestore Database
-Cloud Functions (planned)
-Storage
+- **Views**: SwiftUI interface components
+- **ViewModels**: Business logic and state management
+- **Models**: Core data structures
+- **Repositories**: Data access layer
+- **Services**: API and Firebase interactions
 
+## Dependencies
 
-The Odds API for sports data
+- Firebase (Auth, Firestore, Functions)
+- GoogleSignIn
+- AuthenticationServices (Apple Sign-In)
 
-Development Environment
+## Development Workflow
 
-Xcode 15+
-iOS 15.0+ deployment target
-Firebase iOS SDK
-SwiftUI 4.0
+1. Checkout development branch
+2. Create feature branch
+3. Implement feature
+4. Add unit tests
+5. Submit pull request
+6. Code review
+7. Merge to development
 
-Core Features
-Authentication System
+## Testing
 
-Email/password registration
-Secure session management
-Future: Email verification, social login
-
-Dual Currency System
-Yellow Coins (Practice)
-
-Starting balance: 100 coins
-No real value
-Unlimited daily usage
-Training purpose
-
-Green Coins (Real Money)
-
-1:1 USD ratio
-$100 daily limit
-Biometric authentication
-Transaction history
-
-Betting Features
-
-Real-time odds updates (5-minute intervals)
-Spread betting
-Multiple sports support
-Bet tracking
-Win/loss history
-
-Security Features
-
-Biometric authentication
-Daily betting limits
-Auto-logout (30 minutes)
-Transaction confirmations
-
-Project Structure
-Swift Files Organization
-CopyBettorOdds/
-├── App/
-│   ├── BettorOddsApp.swift
-│   └── ContentView.swift
-├── Models/
-│   ├── Bet.swift
-│   ├── Game.swift
-│   ├── Transaction.swift
-│   └── User.swift
-├── Views/
-│   ├── Authentication/
-│   ├── Betting/
-│   ├── Profile/
-│   └── Common/
-├── ViewModels/
-│   ├── AuthenticationViewModel.swift
-│   ├── BetModalViewModel.swift
-│   └── GamesViewModel.swift
-├── Services/
-│   ├── BetService.swift
-│   ├── GameService.swift
-│   └── UserService.swift
-└── Utilities/
-    ├── BiometricHelper.swift
-    └── Theme.swift
-Database Schema
-The database schema is defined in DATABASE_SCHEMA.md and includes:
-
-Users collection
-Bets collection
-Transactions collection
-Games collection
-Settings collection
-
-Setup Instructions
-Prerequisites
-
-Xcode 15 or higher
-CocoaPods
-Firebase account
-The Odds API key
-
-Initial Setup
-
-Clone the repository
-Install dependencies:
-bashCopypod install
-
-Configure Firebase:
-
-Add GoogleService-Info.plist
-Initialize Firebase in BettorOddsApp.swift
-
-
-Configure The Odds API:
-
-Add API key to Configuration.swift
-
-
-
-Environment Configuration
-
-Development: localhost:8080
-Production: Firebase production environment
-
-Current Status
-Completed Features
-
-✅ User authentication (basic)
-✅ Dual currency system
-✅ Basic betting functionality
-✅ Real-time odds integration
-✅ Biometric authentication
-✅ User profiles
-✅ Transaction history
-✅ Daily limits
-
-In Progress
-
-🟡 Email verification
-🟡 Admin dashboard
-🟡 Advanced analytics
-🟡 Payment processing
-
-Planned Features
-
-📋 Social login
-📋 Push notifications
-📋 Chat support
-📋 Advanced betting types
-📋 Referral system
-
-Known Issues
-
-No email verification on signup
-Limited admin controls
-Basic error handling in some areas
-Need for more comprehensive testing
-
-Next Steps
-Immediate Priorities
-
-Implement email verification
-Create admin dashboard
-Enhance error handling
-Add comprehensive logging
-
-Medium-term Goals
-
-Add payment processing
-Implement push notifications
-Create chat support system
-Add social features
-
-Long-term Vision
-
-Expand to additional sports
-Add advanced betting types
-Implement AI-driven odds analysis
-Create social betting features
-
-Development Guidelines
-Code Style
-
-Follow Swift style guide
-Use SwiftUI best practices
-Implement comprehensive error handling
-Add documentation for all public interfaces
-
-Testing
-
-Unit tests for business logic
-UI tests for critical flows
-Integration tests for API calls
-
-Security
-
-Implement proper authentication flows
-Secure sensitive data
-Follow Firebase security rules
-Regular security audits
-
-Maintenance
-Database
-
-Regular backups
-Performance monitoring
-Data cleanup routines
-Usage analytics
-
-API
-
-Monitor rate limits
-Cache responses
-Handle errors gracefully
-Update odds efficiently
-
-User Management
-
-Monitor user growth
-Track engagement metrics
-Handle support requests
-Manage verification processes
-
-Contributing
-
-Fork the repository
-Create feature branch
-Submit pull request
-Follow code review process
-
-License
-Proprietary - All rights reserved
-Contact
-[Your Contact Information]
-Acknowledgments
-
-Firebase team
-The Odds API
-SwiftUI community
+Run tests with:
+```swift
+xcodebuild test -scheme BettorOdds -destination 'platform=iOS Simulator,name=iPhone 14'
