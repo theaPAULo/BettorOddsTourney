@@ -21,7 +21,6 @@
     <string>1</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-
     <!-- Firebase Configuration -->
     <key>CFBundleURLTypes</key>
     <array>
@@ -31,18 +30,25 @@
                 <string>app-1-756291793040-ios-5fef7265e820ecad6aa815</string>
             </array>
         </dict>
+        <!-- Add this new entry for Sign in with Apple -->
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+            </array>
+        </dict>
     </array>
     <key>FirebaseAppDelegateProxyEnabled</key>
     <false/>
     <key>FirebaseAutomaticScreenReportingEnabled</key>
     <false/>
-
     <!-- Background Modes -->
     <key>UIBackgroundModes</key>
     <array>
         <string>remote-notification</string>
     </array>
-
     <!-- Privacy Permissions -->
     <key>NSPhoneNumberUsageDescription</key>
     <string>We need access to verify your phone number for authentication.</string>
@@ -50,7 +56,6 @@
     <string>We need camera access for scanning documents.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>We use Face ID to securely authenticate transactions.</string>
-
     <!-- UI Configuration -->
     <key>UIApplicationSceneManifest</key>
     <dict>
@@ -69,17 +74,14 @@
             </array>
         </dict>
     </dict>
-
     <!-- Launch Screen Configuration -->
     <key>UILaunchScreen</key>
     <dict/>
-
     <!-- UI Requirements -->
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>armv7</string>
     </array>
-
     <!-- Supported Interface Orientations -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
@@ -92,13 +94,16 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
-
     <!-- Status Bar Style -->
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <true/>
-
     <!-- APNs Environment -->
     <key>aps-environment</key>
     <string>development</string>
+    <!-- Sign in with Apple capability -->
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
 </dict>
 </plist>

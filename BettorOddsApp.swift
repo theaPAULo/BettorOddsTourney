@@ -3,6 +3,7 @@
 import SwiftUI
 import FirebaseCore
 import FirebaseAuth
+import FirebaseAppCheck // Add this import
 import UserNotifications
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -18,6 +19,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         // Set notification delegate
         UNUserNotificationCenter.current().delegate = self
+        
+        // Configure Firebase AppCheck - simpler approach without debug provider
+        let providerFactory = DeviceCheckProviderFactory()
+        AppCheck.setAppCheckProviderFactory(providerFactory)
+        print("✅ Firebase AppCheck configured")
         
         // Request notification permissions
         let authOptions: UNAuthorizationOptions = [.alert, .badge, .sound]

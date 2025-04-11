@@ -79,4 +79,30 @@ class FirebaseConfig {
         print("🔧 Debug settings configured for Firestore")
         #endif
     }
+    
+    // Add this method to FirebaseConfig class
+    func ensureInitializedSettings() async {
+        // Check if settings exist, if not create them
+        do {
+            let settingsRef = self.settingsCollection.document("global")
+            let snapshot = try await settingsRef.getDocument()
+            
+            if !snapshot.exists {
+                print("ℹ️ Creating default settings")
+                try await settingsRef.setData([
+                    "activeTournamentId": "",
+                    "tournamentStartDate": FieldValue.serverTimestamp(),
+                    "tournamentEndDate": FieldValue.serverTimestamp(),
+                    "appVersion": "1.0.0",
+                    "maintenanceMode": false,
+                    "minRequiredVersion": "1.0.0",
+                    "notificationsEnabled": true,
+                    "lastUpdated": FieldValue.serverTimestamp()
+                ])
+            }
+        } catch {
+            print("⚠️ Settings initialization error: \(error.localizedDescription)")
+            // We'll continue with app startup anyway
+        }
+    }
 }

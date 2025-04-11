@@ -108,25 +108,36 @@ class AuthenticationViewModel: ObservableObject {
         return authService.prepareAppleSignInRequest()
     }
     
-    // Handle Apple Sign In completion - fix similar threading issues
+    // Add this to the handleAppleSignInCompletion method in AuthenticationViewModel
     func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
         self.isLoading = true
         
-        authService.handleAppleSignInCompletion(result) { [weak self] result in
-            guard let self = self else { return }
+        switch result {
+        case .success(let authorization):
+            authService.handleAppleSignInCompletion(.success(authorization)) { [weak self] result in
+                guard let self = self else { return }
+                
+                Task { @MainActor in
+                    self.isLoading = false
+                    
+                    switch result {
+                    case .success(let user):
+                        self.user = user
+                        self.isAuthenticated = true
+                    case .failure(let error):
+                        self.error = error
+                        self.errorMessage = "Sign-in failed: \(error.localizedDescription)"
+                        print("🍎 Apple Sign-In error: \(error)")
+                    }
+                }
+            }
             
-            // Use Task to update UI on main thread
+        case .failure(let error):
             Task { @MainActor in
                 self.isLoading = false
-                
-                switch result {
-                case .success(let user):
-                    self.user = user
-                    self.isAuthenticated = true
-                case .failure(let error):
-                    self.error = error
-                    self.errorMessage = error.localizedDescription
-                }
+                self.error = error
+                self.errorMessage = "Apple Sign-In canceled or failed: \(error.localizedDescription)"
+                print("🍎 Apple Sign-In error: \(error)")
             }
         }
     }
