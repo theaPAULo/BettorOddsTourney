@@ -19,11 +19,11 @@ struct LoginView: View {
                     VStack(spacing: 24) {
                         // Logo and Title
                         VStack(spacing: 8) {
-                            Image("AppIcon") // Replace with your app logo
+                            Image(systemName: "dollarsign.circle.fill") // Or any appropriate sports/betting icon
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 120, height: 120)
-                                .padding(.top, 60)
+                                .foregroundColor(.primary)
                             
                             Text("BettorOdds")
                                 .font(.system(size: 32, weight: .bold))
